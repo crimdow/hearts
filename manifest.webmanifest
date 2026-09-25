@@ -1,7 +1,7 @@
 {
-  "name": "Hearts",
-  "short_name": "Hearts",
-  "description": "Hearts score sheet for 4–8 players.",
+  "name": "Hearts Scorecard",
+  "short_name": "HeartScore",
+  "description": "Hearts Scorecard: score sheet for 4–8 players.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
