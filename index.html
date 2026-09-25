@@ -58,12 +58,16 @@ button:disabled{opacity:.35;cursor:not-allowed}
 :focus-visible{outline:2px solid #2f6fe0;outline-offset:2px;border-radius:6px}
 
 .sheet{background:var(--paper);border:1px solid var(--paper-edge);border-radius:22px;padding:10px 8px 16px;box-shadow:0 1px 1px rgba(0,0,0,.03),0 12px 40px rgba(40,60,90,.10)}
-.top{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;min-height:44px;padding:0 0 8px}
+.top{display:grid;grid-template-columns:84px 1fr 84px;align-items:center;min-height:44px;padding:0 0 8px}
 .tools{display:flex;gap:2px}
 h1{font-family:var(--hand);font-weight:400;font-size:clamp(26px,8vw,32px);line-height:1;margin:0;display:flex;align-items:center;justify-content:center;gap:12px}
 h1 svg{width:15px;height:15px;color:var(--accent);flex:none}
 h1 svg.sm{width:10px;height:10px;opacity:.55}
 .icon-btn{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;color:var(--pencil);background:var(--chip)}
+.tools-r{display:flex;gap:4px;justify-content:flex-end}
+.top > .icon-btn{justify-self:start}
+h1{min-width:0}
+@media (max-width:420px){h1 svg.sm{display:none}h1{gap:6px;font-size:26px}h1 svg{width:13px;height:13px}.top{grid-template-columns:74px 1fr 74px}.icon-btn{width:35px;height:35px}.icon-btn svg{width:19px;height:19px}}
 .icon-btn:hover{background:var(--soft);color:var(--ink)}
 .icon-btn svg{width:21px;height:21px}
 
@@ -76,7 +80,7 @@ thead th .nm{display:block;overflow:hidden;text-overflow:clip;line-height:1.05}
 thead th .nm.wrap{white-space:normal;overflow-wrap:anywhere}
 input,button{text-transform:uppercase}
 .hand{width:24px;text-align:center;padding:0;color:var(--pencil);font-size:15px}
-td.c{font-size:var(--fc,24px);position:relative;color:#16181d}
+td.c{font-size:var(--fc,24px);position:relative;color:var(--ink)}
 td.c .w{position:absolute;inset:4px 3px;border-radius:7px}
 td.c .n{position:relative}
 td.c.hot{color:#fff}
@@ -227,7 +231,7 @@ table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .card .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--pencil);font-weight:700}
 .card .winner{font-family:var(--hand);font-size:clamp(38px,10vw,54px);line-height:1;text-wrap:balance}
 .card .final{width:100%;display:flex;flex-direction:column;gap:4px}
-.card .final div{display:flex;justify-content:space-between;padding:3px 12px;border-radius:8px;font-family:var(--hand);font-size:22px;color:#16181d}
+.card .final div{display:flex;justify-content:space-between;padding:3px 12px;border-radius:8px;font-family:var(--hand);font-size:22px;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
 .card .final div.hot{color:#fff}
 .card .row-btns .primary{white-space:nowrap;font-size:14px;padding:12px 10px}
 .seal-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 16px;border-radius:16px;font-size:13px;font-weight:700;letter-spacing:.14em;color:#9a6b12}
@@ -236,6 +240,7 @@ table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .seal-btn:active .gold-seal{transform:scale(.92)}
 .seal-btn.stamping .gold-seal{animation:stamp .55s cubic-bezier(.3,1.6,.5,1)}
 @keyframes stamp{0%{transform:scale(1.25) rotate(-12deg);opacity:.6}45%{transform:scale(.88) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+.seal-why{flex-basis:100%;margin:0;font-size:11px;color:var(--pencil);text-transform:none;letter-spacing:0;overflow-wrap:anywhere}
 .card .sealed{flex-basis:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#9a6b12}
 .card .sealed .gold-seal{width:40px;height:40px;filter:drop-shadow(0 2px 2px rgba(90,60,5,.3))}
 .card .row-btns{flex-wrap:wrap;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
@@ -267,6 +272,7 @@ function themeBtn() {
 function toggleTheme() { const next = THEMES[(THEMES.indexOf(theme()) + 1) % THEMES.length]; document.documentElement.dataset.theme = next; try { localStorage.setItem(THEME_KEY, next); } catch (e) {} render(); }
 const PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const HEART = (c = '') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>`;
+const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4"/></svg>';
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 let state, ui = { pin: '', pop: null, who: -1, val: 0, confirm: false, sel: [], order: [], newName: '', addMsg: '' };
@@ -279,14 +285,11 @@ function fresh() {
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.players)) return s; } catch (e) {} return null; }
 
-// Blue (0) → yellow → orange → red (100)
-const STOPS = [[0, [120, 172, 240]], [.22, [196, 219, 245]], [.45, [247, 222, 128]], [.7, [247, 164, 82]], [1, [232, 64, 64]]];
+// Heat: starts as the blank sheet at 0 and washes in redder until solid hot red at 100
 function heat(score) {
   const t = Math.max(0, Math.min(1, score / GAME_END));
-  let k = 0; while (k < STOPS.length - 2 && t > STOPS[k + 1][0]) k++;
-  const [t0, a] = STOPS[k], [t1, b] = STOPS[k + 1], f = (t - t0) / (t1 - t0);
-  const c = a.map((v, j) => Math.round(v + (b[j] - v) * f));
-  return { bg: `rgb(${c.join(' ')})`, hot: t >= 0.86 };
+  const alpha = 0.92 * Math.pow(t, 0.85);
+  return { bg: `rgba(226, 58, 58, ${alpha.toFixed(3)})`, hot: t >= 0.6 };
 }
 const totals = () => state.players.map((_, i) => state.hands.reduce((a, h) => a + h.scores[i], 0));
 const pendingSum = (except = -1) => (state.pending || []).reduce((a, v, i) => a + (i === except || v == null ? 0 : v), 0);
@@ -322,10 +325,9 @@ function render() {
   else if (state.over && state.early) links.push(`<button class="link" id="resume">Resume game</button>`);
   else if (state.hands.length) links.push(`<button class="link" id="undo">Erase last hand</button>`);
   if (state.started && !state.over && state.hands.length) links.push(`<button class="link" id="end-early">End game now</button>`);
-  links.push(`<button class="link" id="stats">Stats</button>`);
 
   $('#app').innerHTML = `<div class="sheet">
-    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></div>
+    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></span></div>
     <div class="grid"><table class="${n > 6 ? 'tight' : ''}" style="${n <= 4 ? '--fh:21px;--fc:24px;--ft:26px' : n <= 6 ? '--fh:17px;--fc:21px;--ft:22px' : '--fh:14px;--fc:18px;--ft:18px'}"><thead>${head}</thead><tbody>${rows}</tbody>${foot}</table></div>
   </div>
   <div class="below">${main}${links.length ? `<div class="links">${links.join('')}</div>` : ''}</div>`;
@@ -375,11 +377,11 @@ async function pinDigit(d) {
 }
 function renderEmpty() {
   $('#app').innerHTML = `<div class="sheet">
-    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></div>
+    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></span></div>
     <div class="grid"><table><thead><tr>${'<th scope="col"><span class="nm">&nbsp;</span></th>'.repeat(4)}</tr></thead><tbody>${('<tr>' + '<td></td>'.repeat(4) + '</tr>').repeat(7)}</tbody></table></div>
   </div>
   <div class="below"><button class="primary red" id="pick">Who’s playing today?</button></div>`;
-  $('#theme').onclick = toggleTheme; $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
+  $('#theme').onclick = toggleTheme; $('#stats').onclick = () => openPop('stats'); $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
 }
 // shrink long names until they fit their column
 function fitNames() {
@@ -441,8 +443,8 @@ function gameSummary() {
 async function recordGame() {
   if (!state.gameId) newGame();
   if (rosterDb) {
-    try { await rosterDb.collection('games').doc(state.gameId).set(gameSummary()); }
-    catch (e) { return false; }
+    try { await rosterDb.collection('games').doc(state.gameId).set(gameSummary()); ui.saveErr = ''; }
+    catch (e) { ui.saveErr = (e && (e.message || e.code)) || 'unknown error'; console.error('Seal failed', e); return false; }
   }
   state.recorded = true; save();
   return true;
@@ -825,7 +827,11 @@ function showCelebration() {
         const btn = $('#seal'); btn.disabled = true; btn.classList.add('stamping');
         const [ok] = await Promise.all([recordGame(), new Promise(r => setTimeout(r, 550))]);
         if (ok) { render(); drawBtns(); }
-        else { btn.disabled = false; btn.classList.remove('stamping'); btn.lastChild.textContent = 'Couldn\u2019t save. Try again'; }
+        else {
+          btn.disabled = false; btn.classList.remove('stamping'); btn.lastChild.textContent = 'Couldn\u2019t save. Try again';
+          let why = $('#seal-why'); if (!why) { why = document.createElement('p'); why.id = 'seal-why'; why.className = 'seal-why'; $('#win-btns').appendChild(why); }
+          why.textContent = ui.saveErr; // shows the database's reason so it can be fixed
+        }
       };
       $('#seal').focus();
       return;
