@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="felt" cx="35%" cy="25%" r="85%">
+      <stop offset="0" stop-color="#2a8a57"/>
+      <stop offset="1" stop-color="#11502e"/>
+    </radialGradient>
+    <!-- both shapes 790px wide, each centred on the icon -->
+    <path id="heart" transform="translate(-80.8 -174.7) scale(49.4)" d="M12 20.5s-8-4.9-8-10.6A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8 2.6c0 5.7-8 10.6-8 10.6z"/>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#felt)"/>
+  <g>
+    <path transform="translate(-14.8 -3.8) scale(43.9)" d="M12 2C12 2 3 8.5 3 13.5a4.5 4.5 0 0 0 7.6 3.2L9.5 21.5h5l-1.1-4.8A4.5 4.5 0 0 0 21 13.5C21 8.5 12 2 12 2z" fill="none" stroke="#111" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <use href="#heart" fill="none" stroke="#ff4d63" stroke-width="1.32" stroke-linejoin="round"/>
+</svg>
