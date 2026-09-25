@@ -147,6 +147,21 @@ tr.pending td{background:var(--soft)}
 .add-btn svg{width:18px;height:18px}
 .empty-sheet{padding:48px 12px;text-align:center;color:var(--pencil);font-family:var(--hand);font-size:22px}
 .pick{display:flex;flex-direction:column;gap:6px}
+.deck-note{display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;color:var(--pencil);flex-wrap:wrap}
+.dn-label{font-size:11px;letter-spacing:.1em;color:var(--pencil);font-weight:700}
+.minis{display:inline-flex;gap:6px}
+.mini{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:30px;height:42px;border-radius:5px;background:#fffdf6;border:1.5px solid #2a2d33;color:#16181d;font-family:var(--hand);line-height:.95;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.mini b{font-weight:400;font-size:17px}
+.mini i{font-style:normal;font-size:16px}
+.mini.red{color:#d8485b}
+.pop.deck{gap:18px}
+.pop.deck .deck-note{font-size:15px;text-align:center;line-height:1.5}
+.pop.deck .mini{width:36px;height:50px}
+.pop.deck .mini b{font-size:21px}
+.pop.deck .mini i{font-size:19px}
+.kitty-btns{display:flex;gap:10px}
+.kitty-btns .primary{flex:1}
+.kit-preview{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--pencil);font-weight:600}
 .pop.pin{max-width:320px;align-items:center}
 .pop.pin .pop-head{position:relative;justify-content:center;width:100%;padding:4px 40px 0}
 .pop.pin .pop-head h2{text-align:center}
@@ -206,8 +221,16 @@ table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .card .final div{display:flex;justify-content:space-between;padding:3px 12px;border-radius:8px;font-family:var(--hand);font-size:22px;color:#16181d}
 .card .final div.hot{color:#fff}
 .card .row-btns .primary{white-space:nowrap;font-size:14px;padding:12px 10px}
-.card .row-btns{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
-@media (prefers-reduced-motion: reduce){.card,.pop,.pin-dots.shake{animation:none}}
+.seal-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 16px;border-radius:16px;font-size:13px;font-weight:700;letter-spacing:.14em;color:#9a6b12}
+.seal-btn .gold-seal{width:96px;height:96px;filter:drop-shadow(0 3px 4px rgba(90,60,5,.35));transition:transform .15s}
+.seal-btn:hover .gold-seal{transform:rotate(-6deg) scale(1.04)}
+.seal-btn:active .gold-seal{transform:scale(.92)}
+.seal-btn.stamping .gold-seal{animation:stamp .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes stamp{0%{transform:scale(1.25) rotate(-12deg);opacity:.6}45%{transform:scale(.88) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+.card .sealed{flex-basis:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.14em;color:#9a6b12}
+.card .sealed .gold-seal{width:40px;height:40px;filter:drop-shadow(0 2px 2px rgba(90,60,5,.3))}
+.card .row-btns{flex-wrap:wrap;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
+@media (prefers-reduced-motion: reduce){.card,.pop,.pin-dots.shake,.seal-btn.stamping .gold-seal{animation:none}}
 </style>
 </head>
 <body>
@@ -281,7 +304,7 @@ function render() {
   const foot = state.hands.length ? `<tfoot><tr>${t.map(x => { const c = heat(x); return `<td class="c${c.hot ? ' hot' : ''}"><span class="w" style="background:${c.bg}"></span><span class="n">${x}</span></td>`; }).join('')}</tr></tfoot>` : '';
 
   let main, links = [];
-  if (!n) main = `<button class="primary" id="pick">Who’s playing?</button>`;
+  if (!n) main = `<button class="primary" id="pick">Who’s playing today?</button>`;
   else if (!state.started) main = `<button class="primary red" id="start">Start</button><button class="link" id="pick">Change players</button>`;
   else if (state.over) main = `<button class="primary" id="show-win">Show winner</button>`;
   else main = `<p class="hint">Tap <b>+</b> under each player. The last one gets the difference.</p>`;
@@ -303,7 +326,7 @@ function render() {
   on('cfg', () => openPop('config'));
   on('pick', () => openPop('config'));
   on('theme', toggleTheme);
-  on('start', () => { newGame(); state.started = true; save(); render(); openPop('pass'); });
+  on('start', () => { newGame(); state.started = true; save(); render(); openPop(state.players.length > 4 ? 'kitty' : 'pass'); });
   on('end-early', () => openPop('endq'));
   on('resume', () => { unrecordGame(); state.over = false; state.early = false; save(); render(); openPop('pass'); });
   on('stats', () => openPop('stats'));
@@ -346,7 +369,7 @@ function renderEmpty() {
     <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></div>
     <div class="grid"><table><thead><tr>${'<th scope="col"><span class="nm">&nbsp;</span></th>'.repeat(4)}</tr></thead><tbody>${('<tr>' + '<td></td>'.repeat(4) + '</tr>').repeat(7)}</tbody></table></div>
   </div>
-  <div class="below"><button class="primary red" id="pick">Who’s playing Hearts today?</button></div>`;
+  <div class="below"><button class="primary red" id="pick">Who’s playing today?</button></div>`;
   $('#theme').onclick = toggleTheme; $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
 }
 // shrink long names until they fit their column
@@ -385,12 +408,12 @@ function saveRecord() {
 function commit(scores, moon) {
   state.hands.push({ scores, moon });
   state.pending = null;
-  if (totals().some(x => x >= GAME_END)) { state.over = true; state.early = false; recordGame(); }
+  if (totals().some(x => x >= GAME_END)) { state.over = true; state.early = false; } // saved to stats when someone taps SEAL IT
   save(); closePop(); render();
   if (state.over) showCelebration(); else openPop('pass');
 }
 function endEarly() {
-  state.pending = null; state.over = true; state.early = true; recordGame();
+  state.pending = null; state.over = true; state.early = true;
   save(); closePop(); render(); showCelebration();
 }
 function newGame() { state.gameId = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); state.recorded = false; state.early = false; }
@@ -408,9 +431,12 @@ function gameSummary() {
 }
 async function recordGame() {
   if (!state.gameId) newGame();
+  if (rosterDb) {
+    try { await rosterDb.collection('games').doc(state.gameId).set(gameSummary()); }
+    catch (e) { return false; }
+  }
   state.recorded = true; save();
-  if (!rosterDb) return;
-  try { await rosterDb.collection('games').doc(state.gameId).set(gameSummary()); } catch (e) {}
+  return true;
 }
 async function unrecordGame() {
   if (!state.recorded || !state.gameId) return;
@@ -430,15 +456,34 @@ function statsRows() {
 // Passing cycles by table size. [direction, how many people over]
 const PASS_CYCLES = {
   4: [['left', 1], ['right', 1], ['across'], ['hold']],
-  5: [['right', 1], ['left', 1], ['left', 2], ['right', 2], ['hold']],
-  6: [['right', 1], ['left', 1], ['left', 2], ['right', 2], ['across'], ['hold']],
-  7: [['right', 1], ['left', 1], ['left', 2], ['right', 2], ['left', 3], ['right', 3]],
-  8: [['right', 1], ['left', 1], ['left', 2], ['right', 2], ['left', 3], ['right', 3], ['hold']]
+  5: [['left', 1], ['right', 1], ['left', 2], ['right', 2], ['hold']],
+  6: [['left', 1], ['right', 1], ['left', 2], ['right', 2], ['across'], ['hold']],
+  7: [['left', 1], ['right', 1], ['left', 2], ['right', 2], ['left', 3], ['right', 3]],
+  8: [['left', 1], ['right', 1], ['left', 2], ['right', 2], ['left', 3], ['right', 3], ['hold']]
 };
 function passFor(handIdx) {
   const cycle = PASS_CYCLES[state.players.length] || PASS_CYCLES[4];
   const [dir, steps = 1] = cycle[handIdx % cycle.length];
   return { dir, steps };
+}
+// Leftover cards with more than 4 players: a kitty, or pull these out before dealing
+const DECK_SETUP = {
+  5: { remove: ['2♦', '2♣'], start: '3♣' },
+  6: { remove: ['2♦', '3♦', '2♣', '3♣'], start: '4♣' },
+  7: { remove: ['2♦', '3♦', '2♣'], start: '3♣' },
+  8: { remove: ['2♦', '3♦', '2♣', '3♣'], start: '4♣' }
+};
+function miniCard(c) {
+  const suit = c.slice(-1), rank = c.slice(0, -1), red = suit === '♥' || suit === '♦';
+  const name = { '♦': 'diamonds', '♣': 'clubs', '♥': 'hearts', '♠': 'spades' }[suit];
+  return `<span class="mini${red ? ' red' : ''}" role="img" aria-label="${rank} of ${name}"><b>${rank}</b><i>${suit}</i></span>`;
+}
+function deckNote() {
+  const setup = DECK_SETUP[state.players.length];
+  if (!setup) return '';
+  if (state.kitty) return `<div class="deck-note"><span>Whoever takes the first trick inherits the points of the undealt cards.</span></div>`;
+  return `<div class="deck-note"><span class="dn-label">Remove</span><span class="minis">${setup.remove.map(miniCard).join('')}</span></div>
+    <div class="deck-note"><span class="minis">${miniCard(setup.start)}</span><span>starts the hand!</span></div>`;
 }
 function passTitle({ dir, steps }) {
   if (dir === 'hold') return 'HOLD!';
@@ -479,11 +524,11 @@ const slug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|
 // ---------- Supabase connection ----------
 // Paste your project's values here (Supabase dashboard > Project Settings > API).
 // The anon key is meant to be public; the table policies in supabase/schema.sql decide what it can do.
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY';
+const SUPABASE_URL = 'https://ejfmjwlsdhkwhihqrssa.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZm1qd2xzZGhrd2hpaHFyc3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyOTI2NjMsImV4cCI6MjEwNTg2ODY2M30.xDgoEOmVADhixG3mQTlK6PPR_0zO2kSzPuTTtQ1zLoQ';
 
 function supabaseDb() {
-  if (!window.supabase || !SUPABASE_URL.startsWith('https://') || SUPABASE_URL.includes('YOUR-PROJECT')) return null;
+  if (!window.supabase || !SUPABASE_URL.startsWith('https://') || SUPABASE_URL.includes('YOUR-PROJECT') || SUPABASE_ANON_KEY.includes('YOUR-ANON-KEY')) return null;
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const toCols = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/[A-Z]/g, m => '_' + m.toLowerCase()), v]));
   const toJs = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v]));
@@ -613,6 +658,25 @@ function drawPop() {
     document.querySelectorAll('[data-key]').forEach(b => b.onclick = () => {
       if (b.dataset.key === 'del') { ui.pin = ui.pin.slice(0, -1); drawPop(); } else pinDigit(b.dataset.key);
     });
+  } else if (ui.pop === 'deck') {
+    // shown once per game, right after the kitty choice
+    layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop pass deck" role="dialog" aria-modal="true" aria-labelledby="deck-h">
+      <div class="pop-head"><h2 id="deck-h">${state.kitty ? 'Kitty' : 'Deck setup'}</h2></div>
+      ${deckNote()}
+      <button class="primary" id="deck-ok">Got it</button>
+    </div></div>`;
+    $('#deck-ok').onclick = () => openPop('pass');
+    $('#deck-ok').focus();
+  } else if (ui.pop === 'kitty') {
+    const setup = DECK_SETUP[state.players.length];
+    layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop pass" role="dialog" aria-modal="true" aria-labelledby="kit-h">
+      <div class="pop-head"><h2 id="kit-h">Kitty?</h2></div>
+      <p class="hint" style="text-align:center">${state.players.length} players leaves ${52 % state.players.length} undealt card${52 % state.players.length === 1 ? '' : 's'}. With a kitty, whoever takes the first trick inherits the points of the undealt cards.</p>
+      <div class="kitty-btns"><button class="primary" id="kit-yes">Yes</button><button class="primary" id="kit-no">No</button></div>
+    </div></div>`;
+    const pick = v => { state.kitty = v; save(); openPop('deck'); };
+    $('#kit-yes').onclick = () => pick(true);
+    $('#kit-no').onclick = () => pick(false);
   } else if (ui.pop === 'endq') {
     const t = totals(), low = Math.min(...t), lead = state.players.filter((_, k) => t[k] === low);
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="eq-h">
@@ -647,7 +711,7 @@ function drawPop() {
     const locked = state.hands.length > 0 || (state.pending && state.pending.some(v => v != null));
     if (locked) {
       layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="cfg-h">
-        <div class="pop-head"><div><div class="sub">Game in progress</div><h2 id="cfg-h">Who’s playing?</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
+        <div class="pop-head"><div><div class="sub">Game in progress</div><h2 id="cfg-h">Who’s playing today?</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
         <div class="who">${state.players.map((p, k) => `<div class="who-btn on"><span class="seat">${k + 1}</span><span class="nm2">${esc(p)}</span></div>`).join('')}</div>
         <p class="hint">To change who’s playing, start a new game.</p>
         ${ui.confirm ? `<div class="confirm"><span>Clear every score?</span><button class="danger" id="wipe">Yes, new game</button><button class="link" id="keep">Keep scores</button></div>`
@@ -662,7 +726,7 @@ function drawPop() {
       const sel = ui.sel, full = sel.length >= MAX_PLAYERS;
       const count = sel.length < MIN_PLAYERS ? `Pick at least ${MIN_PLAYERS}` : `${sel.length} playing`;
       layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="cfg-h">
-        <div class="pop-head"><div><div class="sub" id="who-count">${count}</div><h2 id="cfg-h">Who’s playing?</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
+        <div class="pop-head"><div><div class="sub" id="who-count">${count}</div><h2 id="cfg-h">Who’s playing today?</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
         <div class="who">${ui.order.map(name => {
           const k = sel.indexOf(name);
           return `<button class="who-btn${k >= 0 ? ' on' : ''}" data-who="${esc(name)}" aria-pressed="${k >= 0}" ${k < 0 && full ? 'disabled' : ''}><span class="seat">${k >= 0 ? k + 1 : ''}</span><span class="nm2">${esc(name)}</span></button>`;
@@ -689,17 +753,36 @@ function drawPop() {
       };
     }
   } else { layer.innerHTML = ''; return; }
-  $('#x').onclick = () => { closePop(); render(); };
-  $('#scrim').onclick = ev => { if (ev.target.id === 'scrim') { closePop(); render(); } };
+  if ($('#x')) $('#x').onclick = () => { closePop(); render(); };
+  $('#scrim').onclick = ev => { if (ev.target.id === 'scrim' && ui.pop !== 'kitty' && ui.pop !== 'deck') { closePop(); render(); } };
 }
 document.addEventListener('keydown', e => {
   if (ui.pop === 'pin') { if (/^[0-9]$/.test(e.key)) { pinDigit(e.key); return; } if (e.key === 'Backspace') { ui.pin = ui.pin.slice(0, -1); drawPop(); return; } }
-  if (e.key === 'Escape' && ui.pop) { closePop(); render(); }
+  if (e.key === 'Escape' && ui.pop && ui.pop !== 'kitty' && ui.pop !== 'deck') { closePop(); render(); }
   if (e.key === 'Enter' && ui.pop === 'record' && $('#ok')) { e.preventDefault(); saveRecord(); }
 });
 
 // ---------- celebration ----------
 let raf = null;
+// Gold wax-seal stamp with an embossed heart
+function goldSeal() {
+  const pts = [];
+  for (let k = 0; k < 72; k++) {
+    const a = k / 72 * Math.PI * 2, r = 46 + 2.6 * Math.sin(a * 14) + 1.2 * Math.sin(a * 5 + 1);
+    pts.push(`${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`);
+  }
+  const id = 'g' + Math.random().toString(36).slice(2, 7);
+  return `<svg class="gold-seal" viewBox="0 0 100 100" aria-hidden="true">
+    <defs>
+      <radialGradient id="${id}a" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#fff1b8"/><stop offset=".35" stop-color="#f2c94c"/><stop offset=".75" stop-color="#c8921d"/><stop offset="1" stop-color="#8a5e0f"/></radialGradient>
+      <radialGradient id="${id}b" cx="60%" cy="65%" r="70%"><stop offset="0" stop-color="#e9b73a"/><stop offset="1" stop-color="#a8740f"/></radialGradient>
+    </defs>
+    <polygon points="${pts.join(' ')}" fill="url(#${id}a)"/>
+    <circle cx="50" cy="50" r="34" fill="url(#${id}b)" stroke="#fce8a0" stroke-opacity=".7" stroke-width="1.5"/>
+    <circle cx="50" cy="50" r="30" fill="none" stroke="#8a5e0f" stroke-opacity=".45" stroke-width="1"/>
+    <path d="M50 68s-16-9.6-16-20.6A8.6 8.6 0 0 1 50 42.4a8.6 8.6 0 0 1 16 5c0 11-16 20.6-16 20.6z" fill="#b07a12" stroke="#fff0b0" stroke-opacity=".75" stroke-width="1.4" transform="translate(0 -3)"/>
+  </svg>`;
+}
 function hideCelebration() { const c = $('#celebrate'); if (c) c.remove(); cancelAnimationFrame(raf); }
 function showCelebration() {
   if ($('#celebrate')) return;
@@ -721,13 +804,32 @@ function showCelebration() {
     <div class="eyebrow">${state.early ? 'Ended early · ' : ''}${winners.length > 1 ? 'Shared win' : 'Winner'} · ${low} point${low === 1 ? '' : 's'} · ${state.hands.length} hand${state.hands.length === 1 ? '' : 's'}</div>
     <div class="winner">${winners.map(esc).join(' & ')}</div>
     <div class="final">${order.map(o => { const c = heat(o.s); return `<div class="${c.hot ? 'hot' : ''}" style="background:${c.bg}"><span>${esc(o.p)}</span><span>${o.s}</span></div>`; }).join('')}</div>
-    <div class="row-btns"><button class="primary" id="again" style="flex:1;max-width:180px">Play again</button><button class="primary" id="work" style="flex:1;max-width:180px">Back to work</button></div>
+    <div class="row-btns" id="win-btns"></div>
   </div>`;
   document.body.appendChild(el);
-  $('#again').onclick = () => { hideCelebration(); state.hands = []; state.pending = null; state.over = false; newGame(); state.started = true; save(); render(); openPop('pass'); };
-  $('#work').onclick = () => { hideCelebration(); state = fresh(); state.resting = true; save(); render(); }; // game is already recorded; flip the card over
-  el.onclick = ev => { if (!ev.target.closest('.card')) hideCelebration(); }; // tap outside to see the sheet
-  $('#again').focus();
+  // Nothing goes into the stats until someone taps SEAL IT. After that: play again or back to work.
+  const drawBtns = () => {
+    const box = $('#win-btns');
+    if (!state.recorded) {
+      box.innerHTML = `<button class="seal-btn" id="seal" aria-label="Seal it: save this result to the stats">${goldSeal()}<span>Seal it</span></button>`;
+      $('#seal').onclick = async () => {
+        const btn = $('#seal'); btn.disabled = true; btn.classList.add('stamping');
+        const [ok] = await Promise.all([recordGame(), new Promise(r => setTimeout(r, 550))]);
+        if (ok) { render(); drawBtns(); }
+        else { btn.disabled = false; btn.classList.remove('stamping'); btn.lastChild.textContent = 'Couldn\u2019t save. Try again'; }
+      };
+      $('#seal').focus();
+      return;
+    }
+    box.innerHTML = `<div class="sealed">${goldSeal()}<span>Sealed</span></div>
+      <button class="primary" id="again" style="flex:1;max-width:180px">Play again</button><button class="primary" id="work" style="flex:1;max-width:180px">Back to work</button>`;
+    $('#again').onclick = () => { hideCelebration(); state.hands = []; state.pending = null; state.over = false; newGame(); state.started = true; save(); render(); openPop(state.players.length > 4 ? 'kitty' : 'pass'); };
+    $('#work').onclick = () => { hideCelebration(); state = fresh(); state.resting = true; save(); render(); };
+    $('#again').focus();
+  };
+  drawBtns();
+  // tap outside the card to see the sheet (composedPath still knows the card if a button inside was just replaced)
+  el.onclick = ev => { if (!ev.composedPath().some(n => n.classList && n.classList.contains('card'))) hideCelebration(); };
   runConfetti($('#confetti'));
 }
 function runConfetti(cv) {
