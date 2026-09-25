@@ -65,6 +65,8 @@ h1 svg{width:15px;height:15px;color:var(--accent);flex:none}
 h1 svg.sm{width:10px;height:10px;opacity:.55}
 .icon-btn{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;color:var(--pencil);background:var(--chip)}
 .tools-r{display:flex;gap:4px;justify-content:flex-end}
+.tools-l{display:flex;gap:4px;justify-content:flex-start}
+.icon-btn:disabled{opacity:.35}
 .top > .icon-btn{justify-self:start}
 h1{min-width:0}
 @media (max-width:420px){h1 svg.sm{display:none}h1{gap:6px;font-size:26px}h1 svg{width:13px;height:13px}.top{grid-template-columns:74px 1fr 74px}.icon-btn{width:35px;height:35px}.icon-btn svg{width:19px;height:19px}}
@@ -105,6 +107,8 @@ tr.pending td{background:var(--soft)}
 .links{display:flex;gap:18px;justify-content:center;flex-wrap:wrap}
 .link{font-size:13px;color:var(--desk-ink);text-decoration:underline;text-underline-offset:3px}
 .link:hover{color:var(--ink)}
+.pop .link,.card .link{color:var(--pencil)}
+.pop .link:hover,.card .link:hover{color:var(--ink)}
 
 .scrim{position:fixed;inset:0;z-index:40;background:rgba(15,22,35,.22);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px}
 .pop{background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);color:var(--ink);border:1px solid var(--glass-edge);border-radius:24px;width:100%;max-width:400px;max-height:calc(100% - 16px);overflow:auto;padding:18px 18px 16px;box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:14px;animation:rise .18s ease-out}
@@ -173,6 +177,12 @@ tr.pending td{background:var(--soft)}
 .pop.deck .mini b{font-size:21px}
 .pop.deck .mini i{font-size:19px}
 .kitty-btns{display:flex;gap:10px}
+.pop.toss{max-width:340px;padding:16px}
+.toss-btns{display:flex;gap:10px}
+.toss-btns .primary{flex:1;white-space:nowrap;font-size:15px;padding:12px 10px}
+.primary.ghost{background:rgba(46,157,91,.15);color:#23874b}
+.primary.ghost:hover{background:rgba(46,157,91,.22)}
+:root[data-theme="dark"] .primary.ghost{background:rgba(76,196,125,.18);color:#5fd08f}
 .kitty-btns .primary{flex:1}
 .kit-preview{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--pencil);font-weight:600}
 .pop.pin{max-width:320px;align-items:center}
@@ -273,6 +283,11 @@ function toggleTheme() { const next = THEMES[(THEMES.indexOf(theme()) + 1) % THE
 const PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const HEART = (c = '') => `<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></svg>`;
 const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4"/></svg>';
+const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+function trashBtn() {
+  const live = state && (state.started || state.hands.length);
+  return `<button class="icon-btn" id="fresh" aria-label="Start fresh" ${live ? '' : 'disabled'}>${TRASH}</button>`;
+}
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 let state, ui = { pin: '', pop: null, who: -1, val: 0, confirm: false, sel: [], order: [], newName: '', addMsg: '' };
@@ -327,7 +342,7 @@ function render() {
   if (state.started && !state.over && state.hands.length) links.push(`<button class="link" id="end-early">End game now</button>`);
 
   $('#app').innerHTML = `<div class="sheet">
-    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></span></div>
+    <div class="top"><span class="tools-l">${trashBtn()}${themeBtn()}</span><h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></span></div>
     <div class="grid"><table class="${n > 6 ? 'tight' : ''}" style="${n <= 4 ? '--fh:21px;--fc:24px;--ft:26px' : n <= 6 ? '--fh:17px;--fc:21px;--ft:22px' : '--fh:14px;--fc:18px;--ft:18px'}"><thead>${head}</thead><tbody>${rows}</tbody>${foot}</table></div>
   </div>
   <div class="below">${main}${links.length ? `<div class="links">${links.join('')}</div>` : ''}</div>`;
@@ -339,6 +354,7 @@ function render() {
   on('theme', toggleTheme);
   on('start', () => { newGame(); state.started = true; save(); render(); openPop(state.players.length > 4 ? 'kitty' : 'pass'); });
   on('end-early', () => openPop('endq'));
+  on('fresh', () => { if (state.started || state.hands.length) openPop('freshq'); });
   on('resume', () => { unrecordGame(); state.over = false; state.early = false; save(); render(); openPop('pass'); });
   on('stats', () => openPop('stats'));
   on('record', beginHand);
@@ -377,11 +393,11 @@ async function pinDigit(d) {
 }
 function renderEmpty() {
   $('#app').innerHTML = `<div class="sheet">
-    <div class="top">${themeBtn()}<h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></span></div>
+    <div class="top"><span class="tools-l">${trashBtn()}${themeBtn()}</span><h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></span></div>
     <div class="grid"><table><thead><tr>${'<th scope="col"><span class="nm">&nbsp;</span></th>'.repeat(4)}</tr></thead><tbody>${('<tr>' + '<td></td>'.repeat(4) + '</tr>').repeat(7)}</tbody></table></div>
   </div>
   <div class="below"><button class="primary red" id="pick">Who’s playing today?</button></div>`;
-  $('#theme').onclick = toggleTheme; $('#stats').onclick = () => openPop('stats'); $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
+  $('#theme').onclick = toggleTheme; $('#fresh').onclick = () => {}; $('#stats').onclick = () => openPop('stats'); $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
 }
 // shrink long names until they fit their column
 function fitNames() {
@@ -688,6 +704,16 @@ function drawPop() {
     const pick = v => { state.kitty = v; save(); openPop('deck'); };
     $('#kit-yes').onclick = () => pick(true);
     $('#kit-no').onclick = () => pick(false);
+  } else if (ui.pop === 'freshq') {
+    layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop toss" role="dialog" aria-modal="true" aria-label="Toss this game?">
+      <div class="toss-btns"><button class="primary ghost" id="fq-no">Keep playing</button><button class="primary" id="fq-yes">Toss it</button></div>
+    </div></div>`;
+    $('#fq-no').onclick = () => { closePop(); render(); };
+    $('#fq-yes').onclick = async () => {
+      if (state.recorded) await unrecordGame(); // an unsealed game was never saved; a sealed one is taken back out
+      hideCelebration(); closePop();
+      state = fresh(); ui.splash = true; save(); render();
+    };
   } else if (ui.pop === 'endq') {
     const t = totals(), low = Math.min(...t), lead = state.players.filter((_, k) => t[k] === low);
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="eq-h">
