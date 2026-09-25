@@ -82,8 +82,8 @@ thead th .nm{display:block;overflow:hidden;text-overflow:clip;line-height:1.05}
 thead th .nm.wrap{white-space:normal;overflow-wrap:anywhere}
 input,button{text-transform:uppercase}
 .hand{width:24px;text-align:center;padding:0;color:var(--pencil);font-size:15px}
-td.c{font-size:var(--fc,24px);position:relative;color:var(--ink)}
-td.c .w{position:absolute;inset:4px 3px;border-radius:7px}
+td.c{font-size:var(--fc,24px);position:relative;color:#1c1f26}
+td.c .w{position:absolute;inset:4px 3px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 td.c .n{position:relative}
 td.c.hot{color:#fff}
 td.c .moon{position:relative;width:.6em;height:.6em;margin-left:1px;vertical-align:0;color:#8a6a00}
@@ -241,7 +241,7 @@ table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .card .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--pencil);font-weight:700}
 .card .winner{font-family:var(--hand);font-size:clamp(38px,10vw,54px);line-height:1;text-wrap:balance}
 .card .final{width:100%;display:flex;flex-direction:column;gap:4px}
-.card .final div{display:flex;justify-content:space-between;padding:3px 12px;border-radius:8px;font-family:var(--hand);font-size:22px;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.card .final div{display:flex;justify-content:space-between;padding:3px 12px;border-radius:8px;font-family:var(--hand);font-size:22px;color:#1c1f26;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .card .final div.hot{color:#fff}
 .card .row-btns .primary{white-space:nowrap;font-size:14px;padding:12px 10px}
 .seal-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 16px;border-radius:16px;font-size:13px;font-weight:700;letter-spacing:.14em;color:#9a6b12}
@@ -300,11 +300,14 @@ function fresh() {
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.players)) return s; } catch (e) {} return null; }
 
-// Heat: starts as the blank sheet at 0 and washes in redder until solid hot red at 100
+// Heat: white (0) → yellow → orange → red (100)
+const STOPS = [[0, [255, 255, 255]], [0.3, [255, 224, 102]], [0.6, [255, 159, 67]], [1, [229, 56, 59]]];
 function heat(score) {
   const t = Math.max(0, Math.min(1, score / GAME_END));
-  const alpha = 0.92 * Math.pow(t, 0.85);
-  return { bg: `rgba(226, 58, 58, ${alpha.toFixed(3)})`, hot: t >= 0.6 };
+  let k = 0; while (k < STOPS.length - 2 && t > STOPS[k + 1][0]) k++;
+  const [t0, a] = STOPS[k], [t1, b] = STOPS[k + 1], f = (t - t0) / (t1 - t0);
+  const c = a.map((v, j) => Math.round(v + (b[j] - v) * f));
+  return { bg: `rgb(${c.join(' ')})`, hot: t >= 0.82 };
 }
 const totals = () => state.players.map((_, i) => state.hands.reduce((a, h) => a + h.scores[i], 0));
 const pendingSum = (except = -1) => (state.pending || []).reduce((a, v, i) => a + (i === except || v == null ? 0 : v), 0);
