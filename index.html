@@ -15,7 +15,9 @@
 <meta property="og:title" content="Hearts Scorecard">
 <meta property="og:description" content="Score sheet for 4–8 players with passing reminders and win stats.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="android-chrome-512.png">
+<meta property="og:image" content="https://hearts.jermins.com/android-chrome-512.png">
+<meta property="og:url" content="https://hearts.jermins.com/">
+<link rel="canonical" href="https://hearts.jermins.com/">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Hearts Scorecard">
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -164,6 +166,11 @@ tr.pending td{background:var(--soft)}
 .add-btn svg{width:18px;height:18px}
 .empty-sheet{padding:48px 12px;text-align:center;color:var(--pencil);font-family:var(--hand);font-size:22px}
 .pick{display:flex;flex-direction:column;gap:6px}
+.slot.view{border-color:transparent;cursor:default}
+.live-set{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
+.live-set .link{align-self:flex-start}
+.live-dot::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#34c759;margin-right:8px;vertical-align:1px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
 .deck-note{display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;color:var(--pencil);flex-wrap:wrap}
 .dn-label{font-size:11px;letter-spacing:.1em;color:var(--pencil);font-weight:700}
 .minis{display:inline-flex;gap:6px}
@@ -286,10 +293,17 @@ const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 function trashBtn() {
   const live = state && (state.started || state.hands.length);
+  if (!canEdit()) return '';
   return `<button class="icon-btn" id="fresh" aria-label="Start fresh" ${live ? '' : 'disabled'}>${TRASH}</button>`;
 }
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
+// Roles and live sync. AUTH/LIVE/REFRESH are filled in by the Supabase connection when one is configured.
+let AUTH = null, LIVE = null, REFRESH = null, liveStarted = false, pushTimer = null;
+let role = 'editor';
+const CLIENT = Math.random().toString(36).slice(2, 10);
+const canEdit = () => role === 'editor';
+const prefs = () => Object.assign({ pass: true, celebrate: true }, state.prefs || {});
 let state, ui = { pin: '', pop: null, who: -1, val: 0, confirm: false, sel: [], order: [], newName: '', addMsg: '' };
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -297,7 +311,45 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 function fresh() {
   return { started: false, over: false, players: [], hands: [], pending: null };
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function save() {
+  state.savedAt = new Date().toISOString();
+  saveLocal();
+  if (LIVE && liveStarted && canEdit()) {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => LIVE.push(state, CLIENT).catch(() => {}), 250);
+  }
+}
+// Follow the game live: viewers always, editors when another editor's phone changes it
+async function startLive() {
+  if (!LIVE || liveStarted) return;
+  liveStarted = true;
+  try {
+    const row = await LIVE.load();
+    if (row && row.state && (!canEdit() || !state.players.length || (row.state.savedAt || '') > (state.savedAt || ''))) adoptRemote(row.state, false);
+  } catch (e) {}
+  LIVE.subscribe(r => { if (r && r.state && r.updated_by !== CLIENT) adoptRemote(r.state, true); });
+}
+function adoptRemote(next, announce) {
+  const prev = state;
+  state = next; saveLocal();
+  if (ui.splash) return; // still on the card; they'll see it when they tap in
+  const pf = prefs();
+  const viewing = !canEdit();
+  if (ui.pop === 'record') closePop();
+  render();
+  if (!announce) { if (state.over && viewing && pf.celebrate) showCelebration(); return; }
+  if (prev.over && !state.over) hideCelebration();
+  if (state.over && !prev.over) { if (!viewing || pf.celebrate) showCelebration(); return; }
+  if ($('#celebrate')) { hideCelebration(); if (state.over) showCelebration(); } // refresh sealed state
+  if (!viewing || !pf.pass) return;
+  const newGameStarted = state.started && (!prev.started || state.gameId !== prev.gameId);
+  if (newGameStarted && state.players.length > 4 && state.kitty === undefined) return; // wait for the kitty choice
+  if ((newGameStarted || (state.kitty !== undefined && prev.kitty === undefined)) && state.hands.length === 0) {
+    openPop(state.players.length > 4 && state.kitty !== undefined ? 'deck' : 'pass'); return;
+  }
+  if (state.hands.length > prev.hands.length && !state.over) openPop('pass');
+}
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.players)) return s; } catch (e) {} return null; }
 
 // Heat: white (0) → yellow → orange → red (100)
@@ -325,7 +377,8 @@ function render() {
   }).join('')}</tr>`).join('');
   if (state.pending) {
     rows += `<tr class="pending">${state.pending.map((v, i) =>
-      `<td><button class="slot${v != null ? ' done' : ''}" data-slot="${i}" aria-label="Record ${esc(state.players[i])}">${v != null ? '+' + v : PLUS}</button></td>`).join('')}</tr>`;
+      canEdit() ? `<td><button class="slot${v != null ? ' done' : ''}" data-slot="${i}" aria-label="Record ${esc(state.players[i])}">${v != null ? '+' + v : PLUS}</button></td>`
+                : `<td><span class="slot view${v != null ? ' done' : ''}">${v != null ? '+' + v : ''}</span></td>`).join('')}</tr>`;
   }
   // blank ruled lines so it reads as a sheet
   const filled = state.hands.length + (state.pending ? 1 : 0);
@@ -338,11 +391,17 @@ function render() {
   else if (!state.started) main = `<button class="primary red" id="start">Start</button><button class="link" id="pick">Change players</button>`;
   else if (state.over) main = `<button class="primary" id="show-win">Show winner</button>`;
   else main = `<p class="hint">Tap <b>+</b> under each player. The last one gets the difference.</p>`;
+  if (!canEdit()) {
+    main = !state.started ? `<p class="hint">Waiting for the scorekeeper to start…</p>`
+      : state.over ? `<button class="primary" id="show-win">Show winner</button>`
+      : `<p class="hint live-dot">Watching live</p>`;
+  }
   const anyIn = state.pending && state.pending.some(v => v != null);
   if (anyIn) links.push(`<button class="link" id="discard">Clear this hand</button>`);
   else if (state.over && state.early) links.push(`<button class="link" id="resume">Resume game</button>`);
   else if (state.hands.length) links.push(`<button class="link" id="undo">Erase last hand</button>`);
   if (state.started && !state.over && state.hands.length) links.push(`<button class="link" id="end-early">End game now</button>`);
+  if (!canEdit()) links = [];
 
   $('#app').innerHTML = `<div class="sheet">
     <div class="top"><span class="tools-l">${trashBtn()}${themeBtn()}</span><h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></span></div>
@@ -352,7 +411,7 @@ function render() {
 
   fitNames();
   const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
-  on('cfg', () => openPop('config'));
+  on('cfg', () => openPop(canEdit() ? 'config' : 'vset'));
   on('pick', () => openPop('config'));
   on('theme', toggleTheme);
   on('start', () => { newGame(); state.started = true; save(); render(); openPop(state.players.length > 4 ? 'kitty' : 'pass'); });
@@ -373,24 +432,50 @@ function renderCardBack() {
   </button>`;
   $('#cardback').onclick = async () => { if (await isUnlocked()) openSheet(); else { ui.pin = ''; openPop('pin'); } };
 }
-function openSheet() { ui.splash = false; state.resting = false; save(); closePop(); render(); if (state.over) showCelebration(); }
+function openSheet() {
+  ui.splash = false; if (canEdit()) { state.resting = false; save(); } closePop(); render();
+  if (state.over && (canEdit() || prefs().celebrate)) showCelebration();
+  startLive();
+}
 
 // ---------- passcode ----------
-// SHA-256 of the passcode (default 168). To change it, hash a new code and paste it here:
+// Without Supabase (the Claude-hosted copy) the codes are checked on this device. SHA-256 of each code:
 //   Mac/Linux: echo -n 1234 | shasum -a 256
-const PASSCODE_HASH = '80c3cd40fa35f9088b8741bd8be6153de05f661cfeeb4625ffbf5f4a6c3c02c4';
+const PASSCODE_HASH = 'f57e5cb1f4532c008183057ecc94283801fcb5afe2d1c190e3dfd38c4da08042'; // 169: editor
+const VIEWER_HASH = '80c3cd40fa35f9088b8741bd8be6153de05f661cfeeb4625ffbf5f4a6c3c02c4';   // 168: viewer
 const PIN_LEN = 3, UNLOCK_KEY = 'hearts-unlocked';
 async function sha256(t) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-async function isUnlocked() { try { return localStorage.getItem(UNLOCK_KEY) === PASSCODE_HASH; } catch (e) { return false; } }
+async function isUnlocked() {
+  if (AUTH) {
+    try { const sess = await AUTH.session(); if (sess) { role = AUTH.roleOf(sess); if (REFRESH) REFRESH(); return true; } } catch (e) {}
+    return false;
+  }
+  let saved = null; try { saved = localStorage.getItem(UNLOCK_KEY); } catch (e) {}
+  if (saved === PASSCODE_HASH) { role = 'editor'; return true; }
+  if (saved === VIEWER_HASH) { role = 'viewer'; return true; }
+  return false;
+}
+async function switchLogin() {
+  if (AUTH) { try { await AUTH.signOut(); } catch (e) {} }
+  try { localStorage.removeItem(UNLOCK_KEY); } catch (e) {}
+  hideCelebration(); closePop(); role = 'editor'; ui.splash = true; render();
+}
 async function pinDigit(d) {
   if (ui.pin.length >= PIN_LEN) return;
   ui.pin += d; drawPop();
   if (ui.pin.length < PIN_LEN) return;
-  const ok = (await sha256(ui.pin)) === PASSCODE_HASH;
-  if (ok) { try { localStorage.setItem(UNLOCK_KEY, PASSCODE_HASH); } catch (e) {} openSheet(); return; }
+  let ok = false;
+  if (AUTH) {
+    const r = await AUTH.signIn(ui.pin).catch(() => null);
+    if (r) { ok = true; role = r; if (REFRESH) REFRESH(); }
+  } else {
+    const h = await sha256(ui.pin);
+    if (h === PASSCODE_HASH || h === VIEWER_HASH) { ok = true; role = h === PASSCODE_HASH ? 'editor' : 'viewer'; try { localStorage.setItem(UNLOCK_KEY, h); } catch (e) {} }
+  }
+  if (ok) { openSheet(); return; }
   const dots = $('.pin-dots'); if (dots) { dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake'); }
   setTimeout(() => { ui.pin = ''; if (ui.pop === 'pin') drawPop(); }, 450);
 }
@@ -399,8 +484,10 @@ function renderEmpty() {
     <div class="top"><span class="tools-l">${trashBtn()}${themeBtn()}</span><h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who’s playing">${GEAR}</button></span></div>
     <div class="grid"><table><thead><tr>${'<th scope="col"><span class="nm">&nbsp;</span></th>'.repeat(4)}</tr></thead><tbody>${('<tr>' + '<td></td>'.repeat(4) + '</tr>').repeat(7)}</tbody></table></div>
   </div>
-  <div class="below"><button class="primary red" id="pick">Who’s playing today?</button></div>`;
-  $('#theme').onclick = toggleTheme; $('#fresh').onclick = () => {}; $('#stats').onclick = () => openPop('stats'); $('#cfg').onclick = $('#pick').onclick = () => openPop('config');
+  <div class="below">${canEdit() ? '<button class="primary red" id="pick">Who’s playing today?</button>' : '<p class="hint">Waiting for the scorekeeper…</p>'}</div>`;
+  $('#theme').onclick = toggleTheme; $('#stats').onclick = () => openPop('stats');
+  $('#cfg').onclick = () => openPop(canEdit() ? 'config' : 'vset');
+  if ($('#pick')) $('#pick').onclick = () => openPop('config');
 }
 // shrink long names until they fit their column
 function fitNames() {
@@ -572,6 +659,37 @@ function supabaseDb() {
   }
   // refresh when the app comes back to the foreground, and live when someone else adds a player or finishes a game
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Object.keys(listeners).forEach(refresh); });
+  REFRESH = () => Object.keys(listeners).forEach(refresh);
+
+  // Two logins: the code a person types is the password for the viewer or editor account.
+  const ROLE_EMAIL = { editor: 'editor@hearts.jermins.com', viewer: 'viewer@hearts.jermins.com' };
+  AUTH = {
+    async session() { const { data } = await sb.auth.getSession(); return data.session; },
+    roleOf(sess) { return sess && sess.user && sess.user.email === ROLE_EMAIL.editor ? 'editor' : 'viewer'; },
+    async signIn(code) {
+      for (const r of ['editor', 'viewer']) {
+        const { error } = await sb.auth.signInWithPassword({ email: ROLE_EMAIL[r], password: 'hearts-' + code });
+        if (!error) return r;
+      }
+      return null;
+    },
+    async signOut() { await sb.auth.signOut(); }
+  };
+
+  // The game in progress lives in one row so every open phone can follow along.
+  LIVE = {
+    async load() { const { data } = await sb.from('live_game').select('*').eq('id', 'current').maybeSingle(); return data; },
+    async push(st, client) {
+      const { error } = await sb.from('live_game').upsert({ id: 'current', state: st, updated_by: client, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    subscribe(cb) {
+      sb.channel('hearts-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'live_game' }, p => cb(p.new))
+        .subscribe();
+      document.addEventListener('visibilitychange', async () => { if (!document.hidden) { const r = await LIVE.load().catch(() => null); if (r) cb(r); } });
+    }
+  };
   try { sb.channel('hearts').on('postgres_changes', { event: '*', schema: 'public' }, p => refresh(p.table)).subscribe(); } catch (e) {}
   return {
     collection: table => ({
@@ -617,6 +735,22 @@ async function addPlayer(raw) {
 }
 initRoster();
 
+function liveSettingsHTML() {
+  if (!AUTH) return '';
+  const pf = prefs();
+  return `<div class="live-set">
+    <div class="dn-label">Viewers see</div>
+    <label class="switch" for="pf-pass"><input type="checkbox" id="pf-pass" ${pf.pass ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Passing pop-ups</label>
+    <label class="switch" for="pf-cel"><input type="checkbox" id="pf-cel" ${pf.celebrate ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Winner celebration</label>
+    <button class="link" id="switch-login">Switch login</button>
+  </div>`;
+}
+function bindLiveSettings() {
+  const set = (k, v) => { state.prefs = Object.assign(prefs(), { [k]: v }); save(); };
+  if ($('#pf-pass')) $('#pf-pass').onchange = e => set('pass', e.target.checked);
+  if ($('#pf-cel')) $('#pf-cel').onchange = e => set('celebrate', e.target.checked);
+  if ($('#switch-login') && ui.pop === 'config') $('#switch-login').onclick = switchLogin;
+}
 function closePop() { ui.pop = null; ui.confirm = false; $('#layer').innerHTML = ''; }
 function openPop(kind) {
   if (kind === 'config') { ui.order = shuffle(roster.slice()); ui.sel = state.players.filter(p => roster.includes(p)); ui.newName = ''; ui.addMsg = ''; }
@@ -747,6 +881,14 @@ function drawPop() {
     </div></div>`;
     $('#deal').onclick = () => { closePop(); render(); };
     $('#deal').focus();
+  } else if (ui.pop === 'vset') {
+    layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="vs-h">
+      <div class="pop-head"><div><div class="sub">Viewer</div><h2 id="vs-h">Watching live</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
+      <p class="hint">The scorekeeper’s sheet updates here as they play.</p>
+      <div class="pop-foot"><button class="link" id="switch-login">Switch login</button><button class="primary" id="vs-ok" style="width:auto">Done</button></div>
+    </div></div>`;
+    $('#vs-ok').onclick = () => { closePop(); render(); };
+    $('#switch-login').onclick = switchLogin;
   } else if (ui.pop === 'config') {
     const locked = state.hands.length > 0 || (state.pending && state.pending.some(v => v != null));
     if (locked) {
@@ -754,6 +896,7 @@ function drawPop() {
         <div class="pop-head"><div><div class="sub">Game in progress</div><h2 id="cfg-h">Who’s playing today?</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
         <div class="who">${state.players.map((p, k) => `<div class="who-btn on"><span class="seat">${k + 1}</span><span class="nm2">${esc(p)}</span></div>`).join('')}</div>
         <p class="hint">To change who’s playing, start a new game.</p>
+        ${liveSettingsHTML()}
         ${ui.confirm ? `<div class="confirm"><span>Clear every score?</span><button class="danger" id="wipe">Yes, new game</button><button class="link" id="keep">Keep scores</button></div>`
           : `<div class="pop-foot"><button class="danger" id="newgame">New game</button><button class="primary" id="done">Done</button></div>`}
       </div></div>`;
@@ -777,6 +920,7 @@ function drawPop() {
         </form>
         ${ui.addMsg ? `<p class="hint">${esc(ui.addMsg)}</p>` : ''}
         <p class="hint">Seats go in the order you tap.</p>
+        ${liveSettingsHTML()}
         <div class="pop-foot"><span></span><button class="primary" id="done" ${sel.length < MIN_PLAYERS ? 'disabled' : ''}>Done</button></div>
       </div></div>`;
       document.querySelectorAll('[data-who]').forEach(btn => btn.onclick = () => {
@@ -793,6 +937,7 @@ function drawPop() {
       };
     }
   } else { layer.innerHTML = ''; return; }
+  bindLiveSettings();
   if ($('#x')) $('#x').onclick = () => { closePop(); render(); };
   $('#scrim').onclick = ev => { if (ev.target.id === 'scrim' && ui.pop !== 'kitty' && ui.pop !== 'deck') { closePop(); render(); } };
 }
@@ -850,6 +995,10 @@ function showCelebration() {
   // Nothing goes into the stats until someone taps SEAL IT. After that: play again or back to work.
   const drawBtns = () => {
     const box = $('#win-btns');
+    if (!canEdit()) {
+      box.innerHTML = state.recorded ? `<div class="sealed">${goldSeal()}<span>Sealed</span></div>` : `<p class="hint">Waiting for the scorekeeper to seal it…</p>`;
+      return;
+    }
     if (!state.recorded) {
       box.innerHTML = `<button class="seal-btn" id="seal" aria-label="Seal it: save this result to the stats">${goldSeal()}<span>Seal it</span></button>`;
       $('#seal').onclick = async () => {
