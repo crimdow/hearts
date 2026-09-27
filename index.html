@@ -27,7 +27,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Instrument+Sans:wght@400;500;600;700&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* page basics (the Claude artifact host used to add these) */
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -638,65 +637,114 @@ function syncOrder() {
   roster.forEach(n => { if (!ui.order.includes(n)) ui.order.push(n); });
 }
 const slug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ('p' + Date.now());
-// ---------- Supabase connection ----------
-// Paste your project's values here (Supabase dashboard > Project Settings > API).
-// The anon key is meant to be public; the table policies in supabase/schema.sql decide what it can do.
-const SUPABASE_URL = 'https://ejfmjwlsdhkwhihqrssa.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZm1qd2xzZGhrd2hpaHFyc3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyOTI2NjMsImV4cCI6MjEwNTg2ODY2M30.xDgoEOmVADhixG3mQTlK6PPR_0zO2kSzPuTTtQ1zLoQ';
+// ---------- PocketBase connection (the Home Board server on bkhomevps) ----------
+// hearts.jermins.com sends /api/* to PocketBase, so the app only talks to its own address.
+const PB_COL = { people: 'hearts_people', games: 'hearts_games' };
+const PB_TOKEN_KEY = 'hearts-pb-auth';
 
-function supabaseDb() {
-  if (!window.supabase || !SUPABASE_URL.startsWith('https://') || SUPABASE_URL.includes('YOUR-PROJECT') || SUPABASE_ANON_KEY.includes('YOUR-ANON-KEY')) return null;
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function supabaseDb() { // (name kept from the Supabase days; the rest of the app calls this)
+  if (!/^https?:$/.test(location.protocol) || !window.fetch || !window.EventSource) return null;
+  let auth = null;
+  try { auth = JSON.parse(localStorage.getItem(PB_TOKEN_KEY) || 'null'); } catch (e) {}
+  const saveAuth = a => { auth = a; try { a ? localStorage.setItem(PB_TOKEN_KEY, JSON.stringify(a)) : localStorage.removeItem(PB_TOKEN_KEY); } catch (e) {} };
+
+  async function api(method, path, body) {
+    const res = await fetch('/api/' + path, {
+      method, headers: Object.assign({ 'Content-Type': 'application/json' }, auth ? { Authorization: auth.token } : {}),
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    const text = await res.text();
+    let data = null; try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+    if (!res.ok) { const err = new Error((data && data.message) || ('PocketBase error ' + res.status)); err.status = res.status; err.data = data; throw err; }
+    return data;
+  }
+  const records = col => `collections/${col}/records`;
+  const q = s => encodeURIComponent(s);
+  const byKey = async (col, key) => {
+    const r = await api('GET', `${records(col)}?perPage=1&filter=${q(`key="${String(key).replace(/"/g, '\\"')}"`)}`);
+    return r.items[0] || null;
+  };
+  const idCache = {};
+  async function upsert(col, key, data) {
+    const ck = col + '/' + key;
+    if (idCache[ck]) {
+      try { return await api('PATCH', `${records(col)}/${idCache[ck]}`, data); } catch (e) { if (e.status !== 404) throw e; delete idCache[ck]; }
+    }
+    const found = await byKey(col, key);
+    if (found) { idCache[ck] = found.id; return api('PATCH', `${records(col)}/${found.id}`, data); }
+    try { const made = await api('POST', records(col), Object.assign({ key }, data)); idCache[ck] = made.id; return made; }
+    catch (e) { const again = await byKey(col, key); if (!again) throw e; idCache[ck] = again.id; return api('PATCH', `${records(col)}/${again.id}`, data); }
+  }
+  async function removeKey(col, key) { const f = await byKey(col, key); if (f) await api('DELETE', `${records(col)}/${f.id}`); delete idCache[col + '/' + key]; }
+  const SYS = ['id', 'key', 'collectionId', 'collectionName', 'created', 'updated'];
   const toCols = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/[A-Z]/g, m => '_' + m.toLowerCase()), v]));
-  const toJs = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v]));
+  const toJs = o => Object.fromEntries(Object.entries(o).filter(([k]) => !SYS.includes(k)).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v]));
+
+  // realtime: one server-sent-events stream, re-subscribed whenever it reconnects
+  const topics = {}; let es = null, clientId = null;
+  async function sendSubs() { if (clientId && auth) { try { await api('POST', 'realtime', { clientId, subscriptions: Object.keys(topics) }); } catch (e) {} } }
+  function listen(topic, fn) {
+    const fresh = !topics[topic]; (topics[topic] = topics[topic] || []).push(fn);
+    if (!es) {
+      es = new EventSource('/api/realtime');
+      es.addEventListener('PB_CONNECT', e => { try { clientId = JSON.parse(e.data).clientId; } catch (x) {} sendSubs(); });
+    }
+    if (fresh) { es.addEventListener(topic, e => { let d = null; try { d = JSON.parse(e.data); } catch (x) {} (topics[topic] || []).forEach(f => f(d)); }); sendSubs(); }
+  }
+
   const listeners = {};
   async function refresh(table) {
-    const ls = listeners[table]; if (!ls) return;
-    const { data, error } = await sb.from(table).select('*');
-    if (error) { ls.forEach(l => l.err && l.err(error)); return; }
-    const snap = { docs: data.map(r => ({ id: r.id, data: () => toJs(r) })) };
-    ls.forEach(l => l.next(snap));
+    const ls = listeners[table]; if (!ls || !auth) return;
+    try {
+      const r = await api('GET', `${records(PB_COL[table])}?perPage=500`);
+      r.items.forEach(it => { idCache[PB_COL[table] + '/' + it.key] = it.id; });
+      const snap = { docs: r.items.map(it => ({ id: it.key, data: () => toJs(it) })) };
+      ls.forEach(l => l.next(snap));
+    } catch (e) { if (e.status === 401) saveAuth(null); }
   }
-  // refresh when the app comes back to the foreground, and live when someone else adds a player or finishes a game
+  let watching = false;
+  function watchTables() { if (watching || !auth) return; watching = true; Object.keys(PB_COL).forEach(t => listen(PB_COL[t] + '/*', () => refresh(t))); }
+  REFRESH = () => { Object.keys(listeners).forEach(refresh); watchTables(); sendSubs(); };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Object.keys(listeners).forEach(refresh); });
-  REFRESH = () => Object.keys(listeners).forEach(refresh);
 
   // Two logins: the code a person types is the password for the viewer or editor account.
-  const ROLE_EMAIL = { editor: 'editor@hearts.jermins.com', viewer: 'viewer@hearts.jermins.com' };
   AUTH = {
-    async session() { const { data } = await sb.auth.getSession(); return data.session; },
-    roleOf(sess) { return sess && sess.user && sess.user.email === ROLE_EMAIL.editor ? 'editor' : 'viewer'; },
+    async session() {
+      if (!auth) return null;
+      try { const r = await api('POST', 'collections/hearts_users/auth-refresh'); saveAuth({ token: r.token, record: r.record }); return r.record; }
+      catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) saveAuth(null); return e.status ? null : auth.record; }
+    },
+    roleOf(rec) { return rec && rec.role === 'editor' ? 'editor' : 'viewer'; },
     async signIn(code) {
       for (const r of ['editor', 'viewer']) {
-        const { error } = await sb.auth.signInWithPassword({ email: ROLE_EMAIL[r], password: 'hearts-' + code });
-        if (!error) return r;
+        try {
+          saveAuth(null);
+          const res = await api('POST', 'collections/hearts_users/auth-with-password', { identity: `${r}@hearts.jermins.com`, password: 'hearts-' + code });
+          saveAuth({ token: res.token, record: res.record });
+          return res.record.role === 'editor' ? 'editor' : 'viewer';
+        } catch (e) {}
       }
       return null;
     },
-    async signOut() { await sb.auth.signOut(); }
+    async signOut() { saveAuth(null); }
   };
 
-  // The game in progress lives in one row so every open phone can follow along.
+  // The game in progress lives in one record so every open phone can follow along.
   LIVE = {
-    async load() { const { data } = await sb.from('live_game').select('*').eq('id', 'current').maybeSingle(); return data; },
-    async push(st, client) {
-      const { error } = await sb.from('live_game').upsert({ id: 'current', state: st, updated_by: client, updated_at: new Date().toISOString() });
-      if (error) throw error;
-    },
+    async load() { try { const r = await byKey('hearts_live', 'current'); return r ? { state: r.state, updated_by: r.updated_by } : null; } catch (e) { return null; } },
+    async push(st, client) { await upsert('hearts_live', 'current', { state: st, updated_by: client, updated_at: new Date().toISOString() }); },
     subscribe(cb) {
-      sb.channel('hearts-live')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'live_game' }, p => cb(p.new))
-        .subscribe();
-      document.addEventListener('visibilitychange', async () => { if (!document.hidden) { const r = await LIVE.load().catch(() => null); if (r) cb(r); } });
+      listen('hearts_live/*', d => { if (d && d.record && d.record.key === 'current') cb({ state: d.record.state, updated_by: d.record.updated_by }); });
+      document.addEventListener('visibilitychange', async () => { if (!document.hidden) { const r = await LIVE.load(); if (r) cb(r); } });
     }
   };
-  try { sb.channel('hearts').on('postgres_changes', { event: '*', schema: 'public' }, p => refresh(p.table)).subscribe(); } catch (e) {}
+
   return {
     collection: table => ({
       onSnapshot(next, err) { (listeners[table] = listeners[table] || []).push({ next, err }); refresh(table); return () => {}; },
       doc: id => ({
-        async set(d) { const { error } = await sb.from(table).upsert({ id, ...toCols(d) }); if (error) throw error; refresh(table); },
-        async delete() { const { error } = await sb.from(table).delete().eq('id', id); if (error) throw error; refresh(table); }
+        async set(d) { await upsert(PB_COL[table], id, toCols(d)); refresh(table); },
+        async delete() { await removeKey(PB_COL[table], id); refresh(table); }
       })
     })
   };
