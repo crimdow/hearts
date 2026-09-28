@@ -4,8 +4,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/crimdow/hearts/main/hearts-pb-setup.sh | tr -d '\r' | bash
 #
 # What it does:
-#   1. Creates the hearts_* collections and the editor/viewer logins in PocketBase
-#   2. Copies players, finished games and the live game over from Supabase (if it's still reachable)
+#   1. Creates the hearts_* collections in PocketBase and removes the old shared code logins
+#   2. Optionally creates a personal login (asks for a username, password and role)
 #   3. Points hearts.jermins.com/api at PocketBase in Caddy, then pulls the latest app from GitHub
 set -e
 
@@ -20,8 +20,14 @@ SKIP_CADDY=${SKIP_CADDY:-}
 ask() { # ask "prompt" var  (reads from the keyboard even when piped through curl)
   local v; read -r -s -p "$1" v </dev/tty; echo >/dev/tty; printf -v "$2" '%s' "$v"
 }
-[ -n "$EDITOR_CODE" ] || ask "Editor code (3 digits): " EDITOR_CODE
-[ -n "$VIEWER_CODE" ] || ask "Viewer code (3 digits): " VIEWER_CODE
+askv() { local v; read -r -p "$1" v </dev/tty; printf -v "$2" '%s' "$v"; }
+if [ -z "$NEW_EMAIL" ] && [ -z "$NO_NEW_USER" ]; then
+  askv "Add a login? Username (or just press Enter to skip): " NEW_EMAIL
+fi
+if [ -n "$NEW_EMAIL" ]; then
+  [ -n "$NEW_ROLE" ] || askv "Role for $NEW_EMAIL - editor or viewer: " NEW_ROLE
+  [ -n "$NEW_PASS" ] || ask "Password (8+ characters): " NEW_PASS
+fi
 
 # A throwaway admin account just for this run, removed again at the end
 SU_EMAIL="hearts-setup-$(date +%s)@example.com"
@@ -32,7 +38,7 @@ trap cleanup EXIT
 echo "== Signing in to PocketBase"
 as_pb "$PB_BIN" superuser upsert "$SU_EMAIL" "$SU_PASS" --dir "$PB_DIR" >/dev/null
 
-export PB_URL SU_EMAIL SU_PASS EDITOR_CODE VIEWER_CODE
+export PB_URL SU_EMAIL SU_PASS NEW_EMAIL NEW_ROLE NEW_PASS
 python3 - <<'PY'
 import json, os, sys, urllib.request, urllib.error
 
@@ -69,8 +75,10 @@ def base(name, fields):
 
 COLLECTIONS = [
     {"name": "hearts_users", "type": "auth",
-     "fields": [{"name": "role", "type": "select", "values": ["editor", "viewer"], "maxSelect": 1, "required": True}],
-     "passwordAuth": {"enabled": True, "identityFields": ["email"]},
+     "fields": [{"name": "role", "type": "select", "values": ["editor", "viewer"], "maxSelect": 1, "required": True},
+              {"name": "username", "type": "text", "required": False, "max": 40}],
+     "indexes": ["CREATE UNIQUE INDEX `idx_hearts_username` ON `hearts_users` (`username` COLLATE NOCASE) WHERE `username` != ''"],
+     "passwordAuth": {"enabled": True, "identityFields": ["username"]},
      "listRule": "id = @request.auth.id", "viewRule": "id = @request.auth.id",
      "createRule": None, "updateRule": None, "deleteRule": None, "authRule": ""},
     base("hearts_people", [{"name": "name", "type": "text", "required": True}, {"name": "added_at", "type": "text"}]),
@@ -84,8 +92,16 @@ print("== Creating collections")
 for c in COLLECTIONS:
     st, existing = call("GET", f"{PB}/api/collections/{c['name']}", headers=H)
     if st == 200:
-        # keep the fields, refresh the rules
+        # keep the data, refresh the rules (and move the logins over to usernames)
         rules = {k: c[k] for k in ("listRule", "viewRule", "createRule", "updateRule", "deleteRule") if k in c}
+        if c["type"] == "auth":
+            fields = existing["fields"]
+            for f in fields:
+                if f["name"] == "email": f["required"] = False
+            if not any(f["name"] == "username" for f in fields):
+                fields.append({"name": "username", "type": "text", "required": False, "max": 40})
+            idx = [i for i in existing.get("indexes", []) if "idx_hearts_username" not in i] + c["indexes"]
+            rules.update({"fields": fields, "indexes": idx, "passwordAuth": c["passwordAuth"]})
         st, res = call("PATCH", f"{PB}/api/collections/{c['name']}", rules, H)
         print(f"   {c['name']}: already there, rules refreshed" if st == 200 else f"   {c['name']}: couldn't update rules ({st}) {res}")
         continue
@@ -93,45 +109,28 @@ for c in COLLECTIONS:
     if st != 200: sys.exit(f"Couldn't create {c['name']} ({st}): {res}")
     print(f"   {c['name']}: created")
 
-print("== Setting up the editor and viewer logins")
-for role, code in (("editor", os.environ["EDITOR_CODE"]), ("viewer", os.environ["VIEWER_CODE"])):
-    email, pw = f"{role}@hearts.jermins.com", f"hearts-{code}"
-    st, found = call("GET", f"{PB}/api/collections/hearts_users/records?filter=" + urllib.request.quote(f'email="{email}"'), headers=H)
-    body = {"email": email, "password": pw, "passwordConfirm": pw, "role": role, "verified": True}
+print("== Logins")
+def q(f): return urllib.request.quote(f)
+# the old shared code logins are retired in favour of personal ones
+for old in ("editor@hearts.jermins.com", "viewer@hearts.jermins.com"):
+    st, found = call("GET", f"{PB}/api/collections/hearts_users/records?filter=" + q(f'email="{old}"'), headers=H)
+    if st == 200 and found["items"]:
+        call("DELETE", f"{PB}/api/collections/hearts_users/records/{found['items'][0]['id']}", headers=H)
+        print(f"   removed the shared login {old}")
+email = os.environ.get("NEW_EMAIL", "").strip()  # the username
+if email:
+    role = os.environ.get("NEW_ROLE", "").strip().lower()
+    if role not in ("editor", "viewer"): sys.exit("Role must be editor or viewer.")
+    pw = os.environ.get("NEW_PASS", "")
+    if len(pw) < 8: sys.exit("The password needs at least 8 characters.")
+    body = {"username": email, "password": pw, "passwordConfirm": pw, "role": role}
+    st, found = call("GET", f"{PB}/api/collections/hearts_users/records?filter=" + q(f'username="{email}"'), headers=H)
     if st == 200 and found["items"]:
         st, res = call("PATCH", f"{PB}/api/collections/hearts_users/records/{found['items'][0]['id']}", body, H)
     else:
         st, res = call("POST", f"{PB}/api/collections/hearts_users/records", body, H)
-    if st != 200: sys.exit(f"Couldn't save the {role} login ({st}): {res}")
-    print(f"   {role} login ready")
-
-def upsert(col, key, data):
-    st, found = call("GET", f"{PB}/api/collections/{col}/records?filter=" + urllib.request.quote(f'key="{key}"'), headers=H)
-    if st == 200 and found["items"]:
-        return call("PATCH", f"{PB}/api/collections/{col}/records/{found['items'][0]['id']}", data, H)
-    return call("POST", f"{PB}/api/collections/{col}/records", {"key": key, **data}, H)
-
-print("== Copying data over from Supabase")
-st, tok = call("POST", SB + "/auth/v1/token?grant_type=password",
-               {"email": "editor@hearts.jermins.com", "password": "hearts-" + os.environ["EDITOR_CODE"]}, {"apikey": SB_KEY})
-if st != 200:
-    print(f"   Supabase didn't answer ({st}); skipping the copy. Your PocketBase setup is still done.")
-else:
-    SH = {"apikey": SB_KEY, "Authorization": "Bearer " + tok["access_token"]}
-    counts = {}
-    for table, col, fields in (("people", "hearts_people", ["name", "added_at"]),
-                               ("games", "hearts_games", ["ended_at", "early", "hands", "players", "finals", "winners", "moons"]),
-                               ("live_game", "hearts_live", ["state", "updated_by", "updated_at"])):
-        st, rows = call("GET", f"{SB}/rest/v1/{table}?select=*", headers=SH)
-        if st != 200:
-            print(f"   {table}: couldn't read ({st}) {rows}"); continue
-        n = 0
-        for r in rows:
-            s, res = upsert(col, str(r["id"]), {f: r.get(f) for f in fields})
-            if s == 200: n += 1
-            else: print(f"   {table} {r['id']}: {s} {res}")
-        counts[table] = n
-    print("   copied " + ", ".join(f"{v} {k}" for k, v in counts.items()))
+    if st != 200: sys.exit(f"Couldn't save the login for {email} ({st}): {res}")
+    print(f"   {email} can sign in as {role}")
 print("== PocketBase is ready")
 PY
 
@@ -177,4 +176,4 @@ PY
   git -C "$SITE" pull --ff-only
 fi
 echo
-echo "Done. Open https://hearts.jermins.com and sign in with your codes."
+echo "Done. Open https://hearts.jermins.com and sign in with your username and password."
