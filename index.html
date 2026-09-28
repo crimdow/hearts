@@ -165,6 +165,15 @@ tr.pending td{background:var(--soft)}
 .add-btn svg{width:18px;height:18px}
 .empty-sheet{padding:48px 12px;text-align:center;color:var(--pencil);font-family:var(--hand);font-size:22px}
 .pick{display:flex;flex-direction:column;gap:6px}
+.pop.login{max-width:340px}
+.pop.login .pop-head{position:relative;justify-content:center;padding:4px 40px 0}
+.pop.login .pop-head h2{text-align:center}
+.pop.login .close{position:absolute;right:-6px;top:-6px}
+.li-form{display:flex;flex-direction:column;gap:10px}
+.li-form input{font:inherit;font-size:17px;text-transform:none;color:var(--ink);background:var(--chip);border:0;border-radius:14px;padding:12px 14px;width:100%}
+.li-form input:focus{outline:1.5px solid var(--accent)}
+.li-form .li-err{color:var(--accent);text-transform:none}
+.signed-in{font-size:13px;color:var(--pencil);text-transform:none;overflow-wrap:anywhere}
 .slot.view{border-color:transparent;cursor:default}
 .live-set{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
 .live-set .link{align-self:flex-start}
@@ -214,7 +223,11 @@ tr.pending td{background:var(--soft)}
 table.stats{table-layout:auto;font-family:var(--hand)}
 table.stats th,table.stats td{border-left:0;height:36px;padding:0 6px;font-size:20px;text-align:center}
 table.stats th{font-family:var(--ui);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--pencil);border-bottom:1px solid var(--line)}
-table.stats th .moon{width:14px;height:14px;color:#c9a227;vertical-align:-2px}
+table.stats th .moon{width:16px;height:16px;color:#c9a227;vertical-align:-3px}
+table.stats th svg{width:18px;height:18px;vertical-align:-4px}
+table.stats th.ic-win{color:#c9a227}
+table.stats th.ic-bust{color:var(--accent)}
+table.stats th.ic-games{color:var(--pencil)}
 table.stats th:first-child,table.stats td:first-child{text-align:left}
 table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .pick-btn{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;font-family:var(--hand);font-size:24px;line-height:1.1;text-align:left}
@@ -295,6 +308,10 @@ function trashBtn() {
   if (!canEdit()) return '';
   return `<button class="icon-btn" id="fresh" aria-label="Start fresh" ${live ? '' : 'disabled'}>${TRASH}</button>`;
 }
+// Stats header icons (same filled, simple style as the moon)
+const ICON_WIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v5a5 5 0 0 1-10 0V3z" fill="currentColor"/><path d="M7 5H4a3.5 3.5 0 0 0 3.6 4.2M17 5h3a3.5 3.5 0 0 1-3.6 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.6 12.6h2.8V16h-2.8z" fill="currentColor"/><rect x="7.5" y="16.2" width="9" height="3.3" rx="1.2" fill="currentColor"/></svg>';
+const ICON_BUST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8.3-5-8.3-10.9A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.3 2.6c0 5.9-8.3 10.9-8.3 10.9z" fill="currentColor"/><path d="M12.2 7.4l-1.9 3.4 2.6 1.7-2.1 3.6 1.2 3.4" fill="none" stroke="#fffaf0" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+const ICON_GAMES = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="10" height="14" rx="2" transform="rotate(-10 8.5 12.5)" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="10" y="4" width="10" height="14" rx="2" transform="rotate(8 15 11)" fill="currentColor"/></svg>';
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 // Roles and live sync. AUTH/LIVE/REFRESH are filled in by the Supabase connection when one is configured.
@@ -429,7 +446,7 @@ function renderCardBack() {
   $('#app').innerHTML = `<button class="cardback" id="cardback" aria-label="Start a new game">
     <span class="cb"><span class="cb-in"><span class="cb-medal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8 2.6c0 5.7-8 10.6-8 10.6z" fill="currentColor"/></svg></span></span></span>
   </button>`;
-  $('#cardback').onclick = async () => { if (await isUnlocked()) openSheet(); else { ui.pin = ''; openPop('pin'); } };
+  $('#cardback').onclick = async () => { if (await isUnlocked()) openSheet(); else { ui.pin = ''; ui.loginErr = ''; openPop(AUTH ? 'login' : 'pin'); } };
 }
 function openSheet() {
   ui.splash = false; if (canEdit()) { state.resting = false; save(); } closePop(); render();
@@ -561,11 +578,13 @@ async function unrecordGame() {
 }
 function statsRows() {
   const by = {};
-  const row = n => by[n] || (by[n] = { name: n, games: 0, wins: 0, moons: 0 });
+  const row = n => by[n] || (by[n] = { name: n, games: 0, wins: 0, moons: 0, busts: 0 });
   games.forEach(g => {
     (g.players || []).forEach(n => row(n).games++);
     (g.winners || []).forEach(n => row(n).wins++);
     Object.entries(g.moons || {}).forEach(([n, c]) => row(n).moons += Number(c) || 0);
+    // a bust = the player whose total went to 100 or more and ended the game
+    (g.players || []).forEach((n, i) => { if (Number((g.finals || [])[i]) >= GAME_END) row(n).busts++; });
   });
   return Object.values(by).sort((a, b) => b.wins - a.wins || b.moons - a.moons || a.name.localeCompare(b.name));
 }
@@ -707,25 +726,23 @@ function supabaseDb() { // (name kept from the Supabase days; the rest of the ap
   REFRESH = () => { Object.keys(listeners).forEach(refresh); watchTables(); sendSubs(); };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Object.keys(listeners).forEach(refresh); });
 
-  // Two logins: the code a person types is the password for the viewer or editor account.
-  AUTH = {
+    AUTH = {
     async session() {
       if (!auth) return null;
       try { const r = await api('POST', 'collections/hearts_users/auth-refresh'); saveAuth({ token: r.token, record: r.record }); return r.record; }
       catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) saveAuth(null); return e.status ? null : auth.record; }
     },
     roleOf(rec) { return rec && rec.role === 'editor' ? 'editor' : 'viewer'; },
-    async signIn(code) {
-      for (const r of ['editor', 'viewer']) {
-        try {
-          saveAuth(null);
-          const res = await api('POST', 'collections/hearts_users/auth-with-password', { identity: `${r}@hearts.jermins.com`, password: 'hearts-' + code });
-          saveAuth({ token: res.token, record: res.record });
-          return res.record.role === 'editor' ? 'editor' : 'viewer';
-        } catch (e) {}
-      }
-      return null;
+    // Personal logins: each person has their own email + password in hearts_users, with a role
+    async signIn(email, password) {
+      saveAuth(null);
+      try {
+        const res = await api('POST', 'collections/hearts_users/auth-with-password', { identity: String(email).trim(), password });
+        saveAuth({ token: res.token, record: res.record });
+        return res.record.role === 'editor' ? 'editor' : 'viewer';
+      } catch (e) { return null; }
     },
+    who() { return auth && auth.record ? (auth.record.name || auth.record.email) : ''; },
     async signOut() { saveAuth(null); }
   };
 
@@ -790,7 +807,8 @@ function liveSettingsHTML() {
     <div class="dn-label">Viewers see</div>
     <label class="switch" for="pf-pass"><input type="checkbox" id="pf-pass" ${pf.pass ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Passing pop-ups</label>
     <label class="switch" for="pf-cel"><input type="checkbox" id="pf-cel" ${pf.celebrate ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Winner celebration</label>
-    <button class="link" id="switch-login">Switch login</button>
+    <div class="signed-in">${AUTH.who ? esc(AUTH.who()) : ''}</div>
+    <button class="link" id="switch-login">Sign out</button>
   </div>`;
 }
 function bindLiveSettings() {
@@ -914,8 +932,8 @@ function drawPop() {
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="st-h">
       <div class="pop-head"><div><div class="sub">${games.length} game${games.length === 1 ? '' : 's'} played</div><h2 id="st-h">Stats</h2></div>
         <button class="close" id="x" aria-label="Close">${X}</button></div>
-      ${rows.length ? `<table class="stats"><thead><tr><th scope="col">Player</th><th scope="col">Wins</th><th scope="col" aria-label="Moon shots">${MOON}</th><th scope="col">Games</th></tr></thead>
-        <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.wins}</td><td>${r.moons}</td><td>${r.games}</td></tr>`).join('')}</tbody></table>`
+      ${rows.length ? `<table class="stats"><thead><tr><th scope="col">Player</th><th scope="col" class="ic-win" aria-label="Wins" title="Wins">${ICON_WIN}</th><th scope="col" aria-label="Moon shots" title="Moon shots">${MOON}</th><th scope="col" class="ic-bust" aria-label="Busts: went to 100 and ended the game" title="Busts: went to 100 and ended the game">${ICON_BUST}</th><th scope="col" class="ic-games" aria-label="Games played" title="Games played">${ICON_GAMES}</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.wins}</td><td>${r.moons}</td><td>${r.busts}</td><td>${r.games}</td></tr>`).join('')}</tbody></table>`
         : `<p class="hint">${rosterDb ? 'No finished games yet. Stats show up here after your first game.' : 'Stats aren’t available right now.'}</p>`}
     </div></div>`;
   } else if (ui.pop === 'pass') {
@@ -929,11 +947,33 @@ function drawPop() {
     </div></div>`;
     $('#deal').onclick = () => { closePop(); render(); };
     $('#deal').focus();
+  } else if (ui.pop === 'login') {
+    layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop login" role="dialog" aria-modal="true" aria-labelledby="li-h">
+      <div class="pop-head"><h2 id="li-h">Sign in</h2><button class="close" id="x" aria-label="Close">${X}</button></div>
+      <form id="li-form" class="li-form">
+        <input type="email" id="li-email" autocomplete="username" inputmode="email" placeholder="Email" aria-label="Email" required>
+        <input type="password" id="li-pass" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
+        ${ui.loginErr ? `<p class="hint li-err">${esc(ui.loginErr)}</p>` : ''}
+        <button class="primary" id="li-go" type="submit">Sign in</button>
+      </form>
+    </div></div>`;
+    $('#li-email').value = ui.loginEmail || '';
+    ($('#li-email').value ? $('#li-pass') : $('#li-email')).focus();
+    $('#li-form').onsubmit = async e => {
+      e.preventDefault();
+      const email = $('#li-email').value, pw = $('#li-pass').value;
+      ui.loginEmail = email;
+      $('#li-go').disabled = true; $('#li-go').textContent = 'Signing in\u2026';
+      const r = await AUTH.signIn(email, pw).catch(() => null);
+      if (r) { role = r; if (REFRESH) REFRESH(); openSheet(); return; }
+      ui.loginErr = 'That email and password didn\u2019t match.'; drawPop();
+    };
   } else if (ui.pop === 'vset') {
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="vs-h">
       <div class="pop-head"><div><div class="sub">Viewer</div><h2 id="vs-h">Watching live</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
       <p class="hint">The scorekeeper’s sheet updates here as they play.</p>
-      <div class="pop-foot"><button class="link" id="switch-login">Switch login</button><button class="primary" id="vs-ok" style="width:auto">Done</button></div>
+      ${AUTH && AUTH.who ? `<div class="signed-in">${esc(AUTH.who())}</div>` : ''}
+      <div class="pop-foot"><button class="link" id="switch-login">${AUTH ? 'Sign out' : 'Switch login'}</button><button class="primary" id="vs-ok" style="width:auto">Done</button></div>
     </div></div>`;
     $('#vs-ok').onclick = () => { closePop(); render(); };
     $('#switch-login').onclick = switchLogin;
