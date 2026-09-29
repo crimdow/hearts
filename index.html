@@ -729,23 +729,17 @@ function supabaseDb() { // (name kept from the Supabase days; the rest of the ap
     AUTH = {
     async session() {
       if (!auth) return null;
-      try {
-        const r = await api('POST', 'collections/users/auth-refresh');
-        if (!r.record.hearts_role) { saveAuth(null); return null; }   // this login has no hearts access (any more)
-        saveAuth({ token: r.token, record: r.record }); return r.record;
-      }
+      try { const r = await api('POST', 'collections/hearts_users/auth-refresh'); saveAuth({ token: r.token, record: r.record }); return r.record; }
       catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) saveAuth(null); return e.status ? null : auth.record; }
     },
-    roleOf(rec) { return rec && rec.hearts_role === 'editor' ? 'editor' : 'viewer'; },
-    // Personal logins live in the shared "users" table (same as Home Board); hearts_role says who can use hearts
+    roleOf(rec) { return rec && rec.role === 'editor' ? 'editor' : 'viewer'; },
+    // Personal logins: each person has their own username + password in hearts_users, with a role
     async signIn(username, password) {
       saveAuth(null);
       try {
-        let id = String(username).trim(); if (id.indexOf('@') < 0) id = id.toLowerCase();   // usernames are lowercase
-        const res = await api('POST', 'collections/users/auth-with-password', { identity: id, password });
-        if (!res.record.hearts_role) return 'none';   // signed in fine, but not a hearts player
+        const res = await api('POST', 'collections/hearts_users/auth-with-password', { identity: String(username).trim(), password });
         saveAuth({ token: res.token, record: res.record });
-        return res.record.hearts_role === 'editor' ? 'editor' : 'viewer';
+        return res.record.role === 'editor' ? 'editor' : 'viewer';
       } catch (e) { return null; }
     },
     who() { return auth && auth.record ? (auth.record.username || auth.record.name || auth.record.email) : ''; },
@@ -807,14 +801,13 @@ async function addPlayer(raw) {
 initRoster();
 
 function liveSettingsHTML() {
-  if (!AUTH) return '';
   const pf = prefs();
   return `<div class="live-set">
-    <div class="dn-label">Viewers see</div>
-    <label class="switch" for="pf-pass"><input type="checkbox" id="pf-pass" ${pf.pass ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Passing pop-ups</label>
-    <label class="switch" for="pf-cel"><input type="checkbox" id="pf-cel" ${pf.celebrate ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Winner celebration</label>
+    <div class="dn-label">Pop-ups</div>
+    <label class="switch" for="pf-pass"><input type="checkbox" id="pf-pass" ${pf.pass ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Passing &amp; kitty directions</label>
+    ${AUTH ? `<label class="switch" for="pf-cel"><input type="checkbox" id="pf-cel" ${pf.celebrate ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Winner celebration</label>
     <div class="signed-in">${AUTH.who ? esc(AUTH.who()) : ''}</div>
-    <button class="link" id="switch-login">Sign out</button>
+    <button class="link" id="switch-login">Sign out</button>` : ''}
   </div>`;
 }
 function bindLiveSettings() {
@@ -825,6 +818,7 @@ function bindLiveSettings() {
 }
 function closePop() { ui.pop = null; ui.confirm = false; $('#layer').innerHTML = ''; }
 function openPop(kind) {
+  if ((kind === 'pass' || kind === 'kitty' || kind === 'deck') && !prefs().pass) { closePop(); render(); return; } // directions switched off for everyone: straight to the scorecard
   if (kind === 'config') { ui.order = shuffle(roster.slice()); ui.sel = state.players.filter(p => roster.includes(p)); ui.newName = ''; ui.addMsg = ''; }
   ui.pop = kind; drawPop();
 }
@@ -957,7 +951,7 @@ function drawPop() {
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop login" role="dialog" aria-modal="true" aria-labelledby="li-h">
       <div class="pop-head"><h2 id="li-h">Sign in</h2><button class="close" id="x" aria-label="Close">${X}</button></div>
       <form id="li-form" class="li-form">
-        <input type="text" id="li-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Username or email" aria-label="Username or email" required>
+        <input type="text" id="li-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Username" aria-label="Username" required>
         <input type="password" id="li-pass" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
         ${ui.loginErr ? `<p class="hint li-err">${esc(ui.loginErr)}</p>` : ''}
         <button class="primary" id="li-go" type="submit">Sign in</button>
@@ -971,7 +965,6 @@ function drawPop() {
       ui.loginEmail = email;
       $('#li-go').disabled = true; $('#li-go').textContent = 'Signing in\u2026';
       const r = await AUTH.signIn(email, pw).catch(() => null);
-      if (r === 'none') { ui.loginErr = 'That login doesn\u2019t have Hearts access yet.'; drawPop(); return; }
       if (r) { role = r; if (REFRESH) REFRESH(); openSheet(); return; }
       ui.loginErr = 'That username and password didn\u2019t match.'; drawPop();
     };
