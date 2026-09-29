@@ -4,8 +4,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/crimdow/hearts/main/hearts-pb-setup.sh | tr -d '\r' | bash
 #
 # What it does:
-#   1. Creates the hearts_* collections in PocketBase and removes the old shared code logins
-#   2. Optionally creates a personal login (asks for a username, password and role)
+#   1. Creates the hearts_* collections in PocketBase (logins live in the shared "users" table, with a hearts_role)
+#   2. Optionally adds or updates a login (asks for a username, password and hearts role)
 #   3. Points hearts.jermins.com/api at PocketBase in Caddy, then pulls the latest app from GitHub
 set -e
 
@@ -26,7 +26,7 @@ if [ -z "$NEW_EMAIL" ] && [ -z "$NO_NEW_USER" ]; then
 fi
 if [ -n "$NEW_EMAIL" ]; then
   [ -n "$NEW_ROLE" ] || askv "Role for $NEW_EMAIL - editor or viewer: " NEW_ROLE
-  [ -n "$NEW_PASS" ] || ask "Password (8+ characters): " NEW_PASS
+  [ -n "$NEW_PASS" ] || ask "Password (6+ characters): " NEW_PASS
 fi
 
 # A throwaway admin account just for this run, removed again at the end
@@ -66,21 +66,15 @@ st, auth = call("POST", PB + "/api/collections/_superusers/auth-with-password",
 if st != 200: sys.exit(f"Couldn't sign in to PocketBase ({st}): {auth}")
 H = {"Authorization": auth["token"]}
 
-AUTHED = '@request.auth.collectionName = "hearts_users"'
-EDITOR = AUTHED + ' && @request.auth.role = "editor"'
+# logins are the shared "users" table (same as Home Board); hearts_role decides who gets in
+AUTHED = '@request.auth.collectionName = "users" && @request.auth.hearts_role != ""'
+EDITOR = '@request.auth.collectionName = "users" && @request.auth.hearts_role = "editor"'
 def base(name, fields):
     return {"name": name, "type": "base", "fields": [{"name": "key", "type": "text", "required": True, "max": 100}] + fields,
             "indexes": [f"CREATE UNIQUE INDEX `idx_{name}_key` ON `{name}` (`key`)"],
             "listRule": AUTHED, "viewRule": AUTHED, "createRule": EDITOR, "updateRule": EDITOR, "deleteRule": EDITOR}
 
 COLLECTIONS = [
-    {"name": "hearts_users", "type": "auth",
-     "fields": [{"name": "role", "type": "select", "values": ["editor", "viewer"], "maxSelect": 1, "required": True},
-              {"name": "username", "type": "text", "required": False, "max": 40}],
-     "indexes": ["CREATE UNIQUE INDEX `idx_hearts_username` ON `hearts_users` (`username` COLLATE NOCASE) WHERE `username` != ''"],
-     "passwordAuth": {"enabled": True, "identityFields": ["username"]},
-     "listRule": "id = @request.auth.id", "viewRule": "id = @request.auth.id",
-     "createRule": None, "updateRule": None, "deleteRule": None, "authRule": ""},
     base("hearts_people", [{"name": "name", "type": "text", "required": True}, {"name": "added_at", "type": "text"}]),
     base("hearts_games", [{"name": "ended_at", "type": "text"}, {"name": "early", "type": "bool"}, {"name": "hands", "type": "number"},
                           {"name": "players", "type": "json"}, {"name": "finals", "type": "json"},
@@ -110,27 +104,24 @@ for c in COLLECTIONS:
     print(f"   {c['name']}: created")
 
 print("== Logins")
+st, users = call("GET", f"{PB}/api/collections/users", headers=H)
+if st != 200 or not any(f["name"] == "hearts_role" for f in users["fields"]):
+    sys.exit("The users table has no hearts_role yet. Upload Home Board's latest server update first, then run this again.")
 def q(f): return urllib.request.quote(f)
-# the old shared code logins are retired in favour of personal ones
-for old in ("editor@hearts.jermins.com", "viewer@hearts.jermins.com"):
-    st, found = call("GET", f"{PB}/api/collections/hearts_users/records?filter=" + q(f'email="{old}"'), headers=H)
-    if st == 200 and found["items"]:
-        call("DELETE", f"{PB}/api/collections/hearts_users/records/{found['items'][0]['id']}", headers=H)
-        print(f"   removed the shared login {old}")
-email = os.environ.get("NEW_EMAIL", "").strip()  # the username
-if email:
+name = os.environ.get("NEW_EMAIL", "").strip().lower()  # the username
+if name:
     role = os.environ.get("NEW_ROLE", "").strip().lower()
     if role not in ("editor", "viewer"): sys.exit("Role must be editor or viewer.")
     pw = os.environ.get("NEW_PASS", "")
-    if len(pw) < 8: sys.exit("The password needs at least 8 characters.")
-    body = {"username": email, "password": pw, "passwordConfirm": pw, "role": role}
-    st, found = call("GET", f"{PB}/api/collections/hearts_users/records?filter=" + q(f'username="{email}"'), headers=H)
+    if len(pw) < 6: sys.exit("The password needs at least 6 characters.")
+    body = {"username": name, "password": pw, "passwordConfirm": pw, "hearts_role": role}
+    st, found = call("GET", f"{PB}/api/collections/users/records?filter=" + q(f'username="{name}"'), headers=H)
     if st == 200 and found["items"]:
-        st, res = call("PATCH", f"{PB}/api/collections/hearts_users/records/{found['items'][0]['id']}", body, H)
+        st, res = call("PATCH", f"{PB}/api/collections/users/records/{found['items'][0]['id']}", body, H)
     else:
-        st, res = call("POST", f"{PB}/api/collections/hearts_users/records", body, H)
-    if st != 200: sys.exit(f"Couldn't save the login for {email} ({st}): {res}")
-    print(f"   {email} can sign in as {role}")
+        st, res = call("POST", f"{PB}/api/collections/users/records", body, H)
+    if st != 200: sys.exit(f"Couldn't save the login for {name} ({st}): {res}")
+    print(f"   {name} can sign in to Hearts as {role}")
 print("== PocketBase is ready")
 PY
 

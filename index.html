@@ -729,17 +729,23 @@ function supabaseDb() { // (name kept from the Supabase days; the rest of the ap
     AUTH = {
     async session() {
       if (!auth) return null;
-      try { const r = await api('POST', 'collections/hearts_users/auth-refresh'); saveAuth({ token: r.token, record: r.record }); return r.record; }
+      try {
+        const r = await api('POST', 'collections/users/auth-refresh');
+        if (!r.record.hearts_role) { saveAuth(null); return null; }   // this login has no hearts access (any more)
+        saveAuth({ token: r.token, record: r.record }); return r.record;
+      }
       catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) saveAuth(null); return e.status ? null : auth.record; }
     },
-    roleOf(rec) { return rec && rec.role === 'editor' ? 'editor' : 'viewer'; },
-    // Personal logins: each person has their own username + password in hearts_users, with a role
+    roleOf(rec) { return rec && rec.hearts_role === 'editor' ? 'editor' : 'viewer'; },
+    // Personal logins live in the shared "users" table (same as Home Board); hearts_role says who can use hearts
     async signIn(username, password) {
       saveAuth(null);
       try {
-        const res = await api('POST', 'collections/hearts_users/auth-with-password', { identity: String(username).trim(), password });
+        let id = String(username).trim(); if (id.indexOf('@') < 0) id = id.toLowerCase();   // usernames are lowercase
+        const res = await api('POST', 'collections/users/auth-with-password', { identity: id, password });
+        if (!res.record.hearts_role) return 'none';   // signed in fine, but not a hearts player
         saveAuth({ token: res.token, record: res.record });
-        return res.record.role === 'editor' ? 'editor' : 'viewer';
+        return res.record.hearts_role === 'editor' ? 'editor' : 'viewer';
       } catch (e) { return null; }
     },
     who() { return auth && auth.record ? (auth.record.username || auth.record.name || auth.record.email) : ''; },
@@ -951,7 +957,7 @@ function drawPop() {
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop login" role="dialog" aria-modal="true" aria-labelledby="li-h">
       <div class="pop-head"><h2 id="li-h">Sign in</h2><button class="close" id="x" aria-label="Close">${X}</button></div>
       <form id="li-form" class="li-form">
-        <input type="text" id="li-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Username" aria-label="Username" required>
+        <input type="text" id="li-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Username or email" aria-label="Username or email" required>
         <input type="password" id="li-pass" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
         ${ui.loginErr ? `<p class="hint li-err">${esc(ui.loginErr)}</p>` : ''}
         <button class="primary" id="li-go" type="submit">Sign in</button>
@@ -965,6 +971,7 @@ function drawPop() {
       ui.loginEmail = email;
       $('#li-go').disabled = true; $('#li-go').textContent = 'Signing in\u2026';
       const r = await AUTH.signIn(email, pw).catch(() => null);
+      if (r === 'none') { ui.loginErr = 'That login doesn\u2019t have Hearts access yet.'; drawPop(); return; }
       if (r) { role = r; if (REFRESH) REFRESH(); openSheet(); return; }
       ui.loginErr = 'That username and password didn\u2019t match.'; drawPop();
     };
