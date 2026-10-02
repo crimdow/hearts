@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Hearts Scorecard</title>
-<meta name="theme-color" content="#17603c">
+<meta name="theme-color" content="#e4e5e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1d1e22" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="HeartScore">
 <meta name="application-name" content="Hearts Scorecard">
 <meta name="description" content="Hearts Scorecard: score sheet for 4–8 players with passing reminders and win stats.">
@@ -24,9 +25,6 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 /* page basics (the Claude artifact host used to add these) */
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -274,6 +272,121 @@ table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .card .sealed .gold-seal{width:40px;height:40px;filter:drop-shadow(0 2px 2px rgba(90,60,5,.3))}
 .card .row-btns{flex-wrap:wrap;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
 @media (prefers-reduced-motion: reduce){.card,.pop,.pin-dots.shake,.seal-btn.stamping .gold-seal{animation:none}}
+
+/* ===== Home Board look =====
+   Same game, same score sheet. Home Board's colours, font (still in capitals), round grey buttons,
+   solid pills, flat background, and menus that slide up from the bottom. */
+:root{
+  --desk:#e4e5e8; --glow1:transparent; --glow2:transparent; --felt:none;
+  --paper:#eeeff1; --paper-edge:transparent; --line:#d0d2d6; --ink:#2b2e33; --pencil:#6b7079;
+  --soft:rgba(43,46,51,.05); --slot:#a3a7ae; --accent:#d45b6c; --on-accent:#fff; --track:#d5d7db;
+  --desk-ink:#6b7079; --btn-bg:#eeeff1; --tint:#d45b6c; --tint-2:#c24a5b; --glass:#eeeff1; --glass-edge:transparent;
+  --chip:#d5d7db; --field:#e3e4e7; --hair:#cfd1d5; --heat-lo:#2b2e33; --heat-hi:#ffffff;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  --hand:var(--ui);
+}
+:root[data-theme="dark"]{
+  --desk:#1d1e22; --glow1:transparent; --glow2:transparent; --desk-ink:#8b9098; --btn-bg:#25262b;
+  --paper:#25262b; --paper-edge:transparent; --line:#34353b; --ink:#e4e4e2; --pencil:#8b9098;
+  --soft:rgba(255,255,255,.05); --slot:#5d6068; --accent:#cf6475; --on-accent:#16171a; --track:#2f3035;
+  --tint:#cf6475; --tint-2:#db7484; --glass:#25262b; --glass-edge:transparent; --chip:#2f3035; --field:#2c2d32; --hair:#3a3b41;
+  --heat-lo:#e4e4e2; --heat-hi:#16171a;
+}
+body,.cardback{background:var(--desk)}
+body{-webkit-font-smoothing:antialiased;transition:background-color .35s,color .35s}
+:focus-visible{outline-color:#4f7bd4}
+
+/* score sheet */
+.sheet{border:0;border-radius:16px;box-shadow:none}
+h1{font-size:23px;font-weight:800;letter-spacing:.06em;gap:8px}
+h1 svg.sm{display:none}
+@media (max-width:420px){h1{font-size:21px;gap:6px}}
+thead th{font-weight:800;letter-spacing:.03em}
+td.c{font-weight:600;color:var(--heat-lo)}
+td.c.hot{color:var(--heat-hi)}
+td.c .moon,td.c.hot .moon{color:#c9a227}
+tfoot td{font-weight:800}
+.slot{font-weight:700;font-size:17px}
+.slot.done{font-size:calc(var(--fc,21px) - 2px)}
+
+/* Home Board's round grey buttons */
+.icon-btn{width:38px;height:38px;background:var(--chip);color:var(--ink)}
+.icon-btn:hover{background:var(--chip);color:var(--ink);filter:brightness(.97)}
+.icon-btn svg{width:19px;height:19px}
+@media (max-width:420px){.icon-btn{width:35px;height:35px}.icon-btn svg{width:18px;height:18px}}
+.close{border-radius:50%;background:var(--chip);color:var(--ink)}
+.close:hover{background:var(--chip);color:var(--ink)}
+.nudge,.add-btn{background:var(--chip);color:var(--ink)}
+.nudge{width:44px;height:44px}
+
+/* pills: solid for the main action, grey for the rest */
+.primary{background:var(--accent);color:var(--on-accent);border-radius:27px;min-height:52px;padding:0 22px;font-size:17px;font-weight:700;text-transform:none;letter-spacing:-.1px}
+.primary:hover{background:var(--tint-2)}
+.primary:disabled{background:var(--chip);color:var(--pencil)}
+.primary.red{background:var(--accent);color:var(--on-accent);border:0;min-height:52px;padding:0 30px;font-size:17px;font-weight:700}
+.primary.red:hover{background:var(--tint-2)}
+.primary.ghost,:root[data-theme="dark"] .primary.ghost{background:var(--chip);color:var(--ink)}
+.primary.ghost:hover{background:var(--chip)}
+.pop-foot .primary{padding:0 24px}
+.toss-btns .primary{padding:0 10px}
+.link,.pop .link,.card .link{text-decoration:none;text-transform:none;height:34px;padding:0 14px;border-radius:17px;background:var(--chip);color:var(--ink);font-size:14px;font-weight:700;display:inline-flex;align-items:center}
+.link:hover,.pop .link:hover,.card .link:hover{color:var(--ink)}
+.links{gap:8px}
+.below .hint,.hint{color:var(--pencil);text-transform:none;font-weight:600}
+.danger{color:var(--accent);font-weight:700;text-transform:none;font-size:15px}
+.moon-link{color:var(--ink)}
+.moon-big .moon{background:var(--chip)}
+
+/* inputs and toggles */
+.add input,.li-form input{background:var(--field);font-weight:600}
+.add input{font-size:18px}
+.names input{font-size:19px;font-weight:600}
+.switch .track{background:var(--chip)}
+.switch input:checked + .track{background:var(--accent)}
+.switch input:focus-visible + .track{outline-color:#4f7bd4}
+.who-btn{background:var(--chip);font-size:16px;font-weight:700}
+.who-btn.on{background:color-mix(in srgb,var(--accent) 16%,var(--chip));color:var(--ink)}
+.who-btn.on .seat{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.pick-btn{font-size:18px;font-weight:700}
+
+/* handwriting spots, now in Home Board's font */
+.pop-head h2{font-size:28px;font-weight:800;letter-spacing:-.2px}
+.vs-scale{font-size:13px;font-weight:700}
+.vs-track{background:var(--chip)}
+.vs-fill{opacity:1}
+.big{font-size:68px;font-weight:700;letter-spacing:-2px}
+.empty-sheet{font-size:17px;font-weight:700}
+.mini b{font-size:15px;font-weight:800}
+.mini i{font-size:14px}
+.key{font-size:26px;font-weight:600}
+table.stats th,table.stats td{font-size:17px;font-weight:600}
+table.stats th{font-size:11px;font-weight:700}
+.stepper output{font-size:22px;font-weight:700}
+.card .winner{font-weight:800;font-size:clamp(32px,9vw,46px)}
+.card .final div{font-size:18px;font-weight:700;color:var(--heat-lo)}
+.card .final div.hot{color:var(--heat-hi)}
+
+/* menus slide up from the bottom, like Home Board's */
+.scrim{align-items:flex-end;padding:0;background:rgba(0,0,0,.35);-webkit-backdrop-filter:none;backdrop-filter:none}
+.pop,.pop.login,.pop.toss,.pop.pin{max-width:500px}
+.pop{max-height:calc(100% - 40px - env(safe-area-inset-top,0px));border:0;border-radius:22px 22px 0 0;background:var(--glass);-webkit-backdrop-filter:none;backdrop-filter:none;
+  padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 40px rgba(0,0,0,.18);position:relative;animation:sheetUp .28s cubic-bezier(.2,.9,.3,1)}
+.pop::before{content:"";position:absolute;top:8px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--hair)}
+.pop-head .sub{font-weight:700}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+
+/* score colour picker */
+.colours{display:flex;flex-direction:column;gap:8px;width:100%}
+.swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.swatch{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 4px 6px;border-radius:12px;background:var(--chip);font-size:11px;font-weight:700;color:var(--pencil);text-transform:none}
+.swatch .sw{width:100%;height:16px;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.swatch.on{color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+
+/* winner card stays in the middle, on a solid card */
+.card{background:var(--glass);-webkit-backdrop-filter:none;backdrop-filter:none;border:0}
+.celebrate{background:rgba(0,0,0,.4);-webkit-backdrop-filter:none;backdrop-filter:none}
+.cb-hint{color:var(--pencil)}
+@media (prefers-reduced-motion: reduce){.pop{animation:none}}
 </style>
 </head>
 <body>
@@ -368,14 +481,44 @@ function adoptRemote(next, announce) {
 }
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.players)) return s; } catch (e) {} return null; }
 
-// Heat: white (0) → yellow → orange → red (100)
-const STOPS = [[0, [255, 255, 255]], [0.3, [255, 224, 102]], [0.6, [255, 159, 67]], [1, [229, 56, 59]]];
+// Heat: a player's running total (0 → 100) as colour. Each ramp starts at the sheet's own colour.
+// Light ramps deepen into the colour; dark ramps start near-black and brighten. `flip` is where the numbers switch colour.
+const RAMPS = {
+  light: {
+    red:    { stops: ['#eeeff1', '#f6cdcd', '#f29f9f', '#ee7272', '#ea4444', '#e01717'], flip: 0.72 },
+    ember:  { stops: ['#eeeff1', '#f7e3c4', '#f5c98a', '#f0a94f', '#e88a1f', '#d96f0a'], flip: 2 },
+    ocean:  { stops: ['#eeeff1', '#cfe0f5', '#a3c4ec', '#72a3e0', '#4580d0', '#1f5fbf'], flip: 0.72 },
+    violet: { stops: ['#eeeff1', '#e2d5f3', '#c9b0ea', '#a985dc', '#8a5bcc', '#6b35b8'], flip: 0.72 },
+    teal:   { stops: ['#eeeff1', '#cdeee8', '#9fdfd3', '#6ccabb', '#36ad9c', '#148a7b'], flip: 0.84 }
+  },
+  dark: {
+    red:    { stops: ['#25262b', '#3a2329', '#662632', '#9e2f3e', '#d63f4f', '#ff5a6a'], flip: 0.76 },
+    ember:  { stops: ['#25262b', '#3b2c22', '#68421f', '#a3621d', '#dc8a1c', '#ffb12e'], flip: 0.62 },
+    ocean:  { stops: ['#25262b', '#1f2f42', '#1e4a6f', '#2267a4', '#3b8ad8', '#72b6ff'], flip: 0.72 },
+    violet: { stops: ['#25262b', '#2f2540', '#4a2d72', '#6b38a8', '#9150d8', '#bf86ff'], flip: 0.76 },
+    teal:   { stops: ['#25262b', '#1f3433', '#1d5751', '#1f7f74', '#2aac9a', '#5fe0c8'], flip: 0.62 }
+  }
+};
+const RAMP_NAMES = [['red', 'Red'], ['ember', 'Ember'], ['ocean', 'Ocean'], ['violet', 'Violet'], ['teal', 'Teal']];
+const COLOURS_KEY = 'hearts-colours';
+function colours() {
+  let c = {}; try { c = JSON.parse(localStorage.getItem(COLOURS_KEY)) || {}; } catch (e) {}
+  return { light: RAMPS.light[c.light] ? c.light : 'red', dark: RAMPS.dark[c.dark] ? c.dark : 'ember' };
+}
+function setColour(name) {
+  const c = colours(); c[isDark() ? 'dark' : 'light'] = name;
+  try { localStorage.setItem(COLOURS_KEY, JSON.stringify(c)); } catch (e) {}
+}
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function rampAt(ramp, t) {
+  const s = ramp.stops, seg = t * (s.length - 1), k = Math.min(s.length - 2, Math.floor(seg)), f = seg - k;
+  const a = hex(s[k]), b = hex(s[k + 1]);
+  return `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * f)).join(' ')})`;
+}
 function heat(score) {
+  const mode = isDark() ? 'dark' : 'light', ramp = RAMPS[mode][colours()[mode]];
   const t = Math.max(0, Math.min(1, score / GAME_END));
-  let k = 0; while (k < STOPS.length - 2 && t > STOPS[k + 1][0]) k++;
-  const [t0, a] = STOPS[k], [t1, b] = STOPS[k + 1], f = (t - t0) / (t1 - t0);
-  const c = a.map((v, j) => Math.round(v + (b[j] - v) * f));
-  return { bg: `rgb(${c.join(' ')})`, hot: t >= 0.82 };
+  return { bg: rampAt(ramp, t), hot: t >= ramp.flip };
 }
 const totals = () => state.players.map((_, i) => state.hands.reduce((a, h) => a + h.scores[i], 0));
 const pendingSum = (except = -1) => (state.pending || []).reduce((a, v, i) => a + (i === except || v == null ? 0 : v), 0);
@@ -421,7 +564,7 @@ function render() {
 
   $('#app').innerHTML = `<div class="sheet">
     <div class="top"><span class="tools-l">${trashBtn()}${themeBtn()}</span><h1>${HEART('sm')}${HEART()}<span>HEARTS</span>${HEART()}${HEART('sm')}</h1><span class="tools-r"><button class="icon-btn" id="stats" aria-label="Stats">${TROPHY}</button><button class="icon-btn" id="cfg" aria-label="Who\u2019s playing">${GEAR}</button></span></div>
-    <div class="grid"><table class="${n > 6 ? 'tight' : ''}" style="${n <= 4 ? '--fh:21px;--fc:24px;--ft:26px' : n <= 6 ? '--fh:17px;--fc:21px;--ft:22px' : '--fh:14px;--fc:18px;--ft:18px'}"><thead>${head}</thead><tbody>${rows}</tbody>${foot}</table></div>
+    <div class="grid"><table class="${n > 6 ? 'tight' : ''}" style="${n <= 4 ? '--fh:16px;--fc:21px;--ft:22px' : n <= 6 ? '--fh:14px;--fc:18px;--ft:19px' : '--fh:12px;--fc:15px;--ft:16px'}"><thead>${head}</thead><tbody>${rows}</tbody>${foot}</table></div>
   </div>
   <div class="below">${main}${links.length ? `<div class="links">${links.join('')}</div>` : ''}</div>`;
 
@@ -806,9 +949,21 @@ async function addPlayer(raw) {
 }
 initRoster();
 
+function coloursHTML() {
+  const mode = isDark() ? 'dark' : 'light', cur = colours()[mode];
+  return `<div class="colours"><div class="dn-label">Score colours · ${isDark() ? 'dark' : 'light'} mode</div>
+    <div class="swatches">${RAMP_NAMES.map(([k, label]) => {
+      const st = RAMPS[mode][k].stops;
+      return `<button class="swatch${k === cur ? ' on' : ''}" data-ramp="${k}" aria-pressed="${k === cur}"><span class="sw" style="background:linear-gradient(90deg,${st.join(',')})"></span>${label}</button>`;
+    }).join('')}</div></div>`;
+}
+function bindColours() {
+  document.querySelectorAll('[data-ramp]').forEach(b => b.onclick = () => { setColour(b.dataset.ramp); render(); drawPop(); });
+}
 function liveSettingsHTML() {
   const pf = prefs();
   return `<div class="live-set">
+    ${coloursHTML()}
     <div class="dn-label">Pop-ups</div>
     <label class="switch" for="pf-pass"><input type="checkbox" id="pf-pass" ${pf.pass ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Passing &amp; kitty directions</label>
     ${AUTH ? `<label class="switch" for="pf-cel"><input type="checkbox" id="pf-cel" ${pf.celebrate ? 'checked' : ''}><span class="track" aria-hidden="true"></span>Winner celebration</label>
@@ -979,6 +1134,7 @@ function drawPop() {
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="vs-h">
       <div class="pop-head"><div><div class="sub">Viewer</div><h2 id="vs-h">Watching live</h2></div><button class="close" id="x" aria-label="Close">${X}</button></div>
       <p class="hint">The scorekeeper’s sheet updates here as they play.</p>
+      <div class="live-set">${coloursHTML()}</div>
       ${AUTH && AUTH.who ? `<div class="signed-in">${esc(AUTH.who())}</div>` : ''}
       <div class="pop-foot"><button class="link" id="switch-login">${AUTH ? 'Sign out' : 'Switch login'}</button><button class="primary" id="vs-ok" style="width:auto">Done</button></div>
     </div></div>`;
@@ -1032,7 +1188,7 @@ function drawPop() {
       };
     }
   } else { layer.innerHTML = ''; return; }
-  bindLiveSettings();
+  bindLiveSettings(); bindColours();
   if ($('#x')) $('#x').onclick = () => { closePop(); render(); };
   $('#scrim').onclick = ev => { if (ev.target.id === 'scrim' && ui.pop !== 'kitty' && ui.pop !== 'deck') { closePop(); render(); } };
 }
