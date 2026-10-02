@@ -375,6 +375,22 @@ table.stats th{font-size:11px;font-weight:700}
 .pop-head .sub{font-weight:700}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 
+/* no menu slide when it's only redrawn */
+.pop.still{animation:none}
+html:has(#layer .scrim){overflow:hidden}   /* the page behind an open menu stays put */
+html,body{touch-action:manipulation;overscroll-behavior:none}
+
+/* sign-in page, same as Home Board and Binder */
+.gate{position:fixed;inset:0;z-index:30;background:var(--desk);display:flex;align-items:center;justify-content:center;padding:24px;text-transform:none}
+.gate-in{width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px}
+.gate .hello{margin:0 0 6px;font-size:26px;font-weight:800;letter-spacing:-.4px;text-align:center}
+.gate .sub{margin:0 0 10px;color:var(--pencil);font-size:15px;text-align:center}
+.gate input{border:0;border-radius:12px;background:var(--chip);color:var(--ink);font:inherit;font-size:17px;padding:14px;text-transform:none}
+.gate input:focus{outline:2px solid #4f7bd4}
+.gate button{border:0;border-radius:12px;background:var(--ink);color:var(--desk);font:inherit;font-size:17px;font-weight:700;padding:14px;cursor:pointer;text-transform:none}
+.gate button:disabled{opacity:.5}
+.gate .err{color:var(--accent);font-size:15px;min-height:1.3em;margin:0;text-align:center}
+
 /* score colour picker */
 .colours{display:flex;flex-direction:column;gap:8px;width:100%}
 .swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -541,7 +557,7 @@ function render() {
   }
   // blank ruled lines so it reads as a sheet
   const filled = state.hands.length + (state.pending ? 1 : 0);
-  if (!n) return state.resting ? renderCardBack() : renderEmpty();
+  if (!n) return renderEmpty();
   for (let k = filled; k < Math.max(filled + 1, 6); k++) rows += `<tr>${'<td></td>'.repeat(n)}</tr>`;
   const foot = state.hands.length ? `<tfoot><tr>${t.map(x => { const c = heat(x); return `<td class="c${c.hot ? ' hot' : ''}"><span class="w" style="background:${c.bg}"></span><span class="n">${x}</span></td>`; }).join('')}</tr></tfoot>` : '';
 
@@ -585,11 +601,40 @@ function render() {
   document.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => openRecord(+b.dataset.slot));
 }
 
-function renderCardBack() {
-  $('#app').innerHTML = `<button class="cardback" id="cardback" aria-label="Start a new game">
-    <span class="cb"><span class="cb-in"><span class="cb-medal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8-4.9-8-10.6A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8 2.6c0 5.7-8 10.6-8 10.6z" fill="currentColor"/></svg></span></span></span>
-  </button>`;
-  $('#cardback').onclick = async () => { if (await isUnlocked()) openSheet(); else { ui.pin = ''; ui.loginErr = ''; openPop(AUTH ? 'login' : 'pin'); } };
+function renderCardBack() {   // the way in: check the login, then the sheet or the sign-in page
+  if (!ui.gateChecked) {
+    $('#app').innerHTML = '';
+    if (!ui.gateChecking) {
+      ui.gateChecking = true;
+      isUnlocked().then(ok => { ui.gateChecking = false; ui.gateChecked = true; if (ok) openSheet(); else render(); });
+    }
+    return;
+  }
+  if (!AUTH) {   // no server configured: the passcode pad
+    $('#app').innerHTML = `<div class="gate"><div class="gate-in"><p class="hello">Hearts</p><p class="sub">Enter the passcode to keep score.</p><button type="button" id="g-pin">Enter passcode</button></div></div>`;
+    $('#g-pin').onclick = () => { ui.pin = ''; openPop('pin'); };
+    return;
+  }
+  $('#app').innerHTML = `<div class="gate"><form class="gate-in" id="g-form" autocomplete="on">
+    <p class="hello">Hearts</p>
+    <p class="sub">Sign in with your Home Board login.</p>
+    <input id="g-user" type="text" placeholder="Email or username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Email or username" required>
+    <input id="g-pass" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" required>
+    <p class="err" id="g-err">${esc(ui.loginErr || '')}</p>
+    <button type="submit" id="g-go">Sign in</button>
+  </form></div>`;
+  $('#g-user').value = ui.loginEmail || '';
+  $('#g-form').onsubmit = async e => {
+    e.preventDefault();
+    const email = $('#g-user').value, pw = $('#g-pass').value;
+    ui.loginEmail = email;
+    $('#g-go').disabled = true; $('#g-go').textContent = 'Signing in…';
+    const r = await AUTH.signIn(email, pw).catch(() => null);
+    if (r === 'none') ui.loginErr = 'That login doesn’t have Hearts access yet.';
+    else if (r) { ui.loginErr = ''; role = r; if (REFRESH) REFRESH(); openSheet(); return; }
+    else ui.loginErr = 'That username and password didn’t match.';
+    render();
+  };
 }
 function openSheet() {
   ui.splash = false; if (canEdit()) { state.resting = false; save(); } closePop(); render();
@@ -620,7 +665,7 @@ async function isUnlocked() {
 async function switchLogin() {
   if (AUTH) { try { await AUTH.signOut(); } catch (e) {} }
   try { localStorage.removeItem(UNLOCK_KEY); } catch (e) {}
-  hideCelebration(); closePop(); role = 'editor'; ui.splash = true; render();
+  hideCelebration(); closePop(); role = 'editor'; ui.splash = true; ui.gateChecked = true; ui.loginErr = ''; render();
 }
 async function pinDigit(d) {
   if (ui.pin.length >= PIN_LEN) return;
@@ -958,7 +1003,7 @@ function coloursHTML() {
     }).join('')}</div></div>`;
 }
 function bindColours() {
-  document.querySelectorAll('[data-ramp]').forEach(b => b.onclick = () => { setColour(b.dataset.ramp); render(); drawPop(); });
+  document.querySelectorAll('[data-ramp]').forEach(b => b.onclick = () => { const y = window.scrollY; setColour(b.dataset.ramp); render(); drawPop(); window.scrollTo(0, y); });
 }
 function liveSettingsHTML() {
   const pf = prefs();
@@ -977,13 +1022,20 @@ function bindLiveSettings() {
   if ($('#pf-cel')) $('#pf-cel').onchange = e => set('celebrate', e.target.checked);
   if ($('#switch-login') && ui.pop === 'config') $('#switch-login').onclick = switchLogin;
 }
-function closePop() { ui.pop = null; ui.confirm = false; $('#layer').innerHTML = ''; }
+function closePop() { ui.pop = null; ui.popShown = null; ui.confirm = false; $('#layer').innerHTML = ''; }
 function openPop(kind) {
   if ((kind === 'pass' || kind === 'kitty' || kind === 'deck') && !prefs().pass) { closePop(); render(); return; } // directions switched off for everyone: straight to the scorecard
   if (kind === 'config') { ui.order = shuffle(roster.slice()); ui.sel = state.players.filter(p => roster.includes(p)); ui.newName = ''; ui.addMsg = ''; }
   ui.pop = kind; drawPop();
 }
 function drawPop() {
+  const old = $('#layer .pop'), again = !!old && ui.popShown === ui.pop, keep = old ? old.scrollTop : 0;
+  drawPopNow();
+  const now = $('#layer .pop');
+  if (now && again) { now.classList.add('still'); now.scrollTop = keep; }
+  ui.popShown = ui.pop;
+}
+function drawPopNow() {
   const layer = $('#layer');
   if (ui.pop === 'record') {
     const i = ui.who, max = Math.min(HAND_TOTAL - 1, HAND_TOTAL - pendingSum(i)); // 26 alone is a moon shot
@@ -1076,7 +1128,7 @@ function drawPop() {
     $('#fq-yes').onclick = async () => {
       if (state.recorded) await unrecordGame(); // an unsealed game was never saved; a sealed one is taken back out
       hideCelebration(); closePop();
-      state = fresh(); ui.splash = true; save(); render();
+      state = fresh(); save(); render();
     };
   } else if (ui.pop === 'endq') {
     const t = totals(), low = Math.min(...t), lead = state.players.filter((_, k) => t[k] === low);
@@ -1315,6 +1367,8 @@ window.claude?.hot?.snapshot?.(() => ({ state }));
 const hot = window.claude?.hot;
 hot?.ready ? hot.ready(start) : start(hot?.data ?? {});
 })();
+document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });   // iPhone pinch
+document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
 </script>
 </body>
 </html>
