@@ -670,6 +670,17 @@ async function sha256(t) {
 }
 async function isUnlocked() {
   if (AUTH) {
+    // Signed in on this phone before: open the sheet now and check the login with the server in the background
+    const saved = AUTH.saved();
+    if (saved) {
+      role = AUTH.roleOf(saved); if (REFRESH) REFRESH();
+      AUTH.session().then(rec => {
+        if (!AUTH.saved()) { hideCelebration(); closePop(); role = 'editor'; ui.splash = true; ui.loginErr = 'Please sign in again.'; render(); return; }
+        const now = AUTH.roleOf(rec || saved);
+        if (now !== role) { role = now; if (ui.pop) closePop(); render(); }
+      }, () => {});
+      return true;
+    }
     try { const sess = await AUTH.session(); if (sess) { role = AUTH.roleOf(sess); if (REFRESH) REFRESH(); return true; } } catch (e) {}
     return false;
   }
@@ -939,6 +950,13 @@ function supabaseDb() { // (name kept from the Supabase days; the rest of the ap
         saveAuth({ token: r.token, record: r.record }); return r.record;
       }
       catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) saveAuth(null); return e.status ? null : auth.record; }
+    },
+    // The login saved on this phone, if it has hearts access and hasn't run out yet (no server call)
+    saved() {
+      if (!auth || !auth.record || !auth.record.hearts_role) return null;
+      try { const p = JSON.parse(atob(auth.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); if (!(p.exp * 1000 > Date.now() + 60000)) { saveAuth(null); return null; } }
+      catch (e) { return null; }
+      return auth.record;
     },
     roleOf(rec) { return rec && rec.hearts_role === 'editor' ? 'editor' : 'viewer'; },
     // Personal logins live in the shared "users" table (same as Home Board); hearts_role says who can use hearts
