@@ -21,6 +21,7 @@ Ben likes the play style and the scorecard: hands, the pass directions, the kitt
 - Redraw open menus with `drawPop()`, not `drawPopNow()`. It keeps the scroll position and adds `.still`, so the sheet doesn't replay its slide-up animation (Ben noticed this as a "glitch").
 - Theme and colour changes go through `repaintLook()`. It re-renders the sheet, because cell colours are worked out per mode, and redraws the open menu in place.
 - A head script sets `data-theme` before first paint, and `meta#tc` follows the app's theme.
+- **Fast open:** a saved login that hasn't run out (`AUTH.saved()` reads the token's expiry) opens the sheet straight away, and `AUTH.session()` checks it with the server in the background. If the server refuses it, the app goes to sign-in with "Please sign in again"; if the role changed, the sheet redraws. Don't put the server check back in front of the first draw.
 
 ## Look
 - Same as Home Board: light background `#e4e5e8` with sheet `#eeeff1`, dark background `#1d1e22` with sheet `#25262b`, accent red `#d45b6c`.
