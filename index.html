@@ -226,8 +226,14 @@ table.stats th svg{width:18px;height:18px;vertical-align:-4px}
 table.stats th.ic-win{color:#c9a227}
 table.stats th.ic-bust{color:var(--accent)}
 table.stats th.ic-games{color:var(--pencil)}
-table.stats th.ic-pct,table.stats th.ic-hands{color:var(--pencil)}
-table.stats td{padding:0 4px}
+table.stats th.ic-pct,table.stats th.ic-hands,table.stats th.ic-worst{color:var(--pencil)}
+table.stats th.ic-pts{color:var(--accent)}
+table.stats th.sortable{cursor:pointer;position:relative;user-select:none;-webkit-tap-highlight-color:transparent}
+table.stats th.sortable.on{box-shadow:inset 0 -2px 0 currentColor}
+table.stats th .arr{position:absolute;left:50%;top:3px;transform:translateX(-50%);font-style:normal;font-size:7px;line-height:1;color:var(--pencil)}
+table.stats th:first-child .arr{left:0;transform:none}
+table.stats th,table.stats td{padding:0 2px}
+table.stats th svg{width:17px;height:17px}
 .avgs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
 .avg{background:var(--chip,rgba(128,128,128,.14));border-radius:14px;padding:10px 6px;text-align:center}
 .avg b{display:block;font-size:24px;font-weight:700;line-height:1.1}
@@ -371,6 +377,8 @@ tfoot td{font-weight:800}
 .key{font-size:26px;font-weight:600}
 table.stats th,table.stats td{font-size:17px;font-weight:600}
 table.stats th{font-size:11px;font-weight:700}
+table.stats td{font-size:16px}
+table.stats td:first-child{font-size:17px;padding-right:6px}
 .stepper output{font-size:22px;font-weight:700}
 .card .winner{font-weight:800;font-size:clamp(32px,9vw,46px)}
 .card .final div{font-size:18px;font-weight:700;color:var(--heat-lo)}
@@ -468,6 +476,8 @@ const ICON_WIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v5
 const ICON_BUST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8.3-5-8.3-10.9A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.3 2.6c0 5.9-8.3 10.9-8.3 10.9z" fill="currentColor"/><path d="M12.2 7.4l-1.9 3.4 2.6 1.7-2.1 3.6 1.2 3.4" fill="none" stroke="#fffaf0" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
 const ICON_PCT = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.2" cy="7.2" r="3" fill="currentColor"/><circle cx="16.8" cy="16.8" r="3" fill="currentColor"/><path d="M18.4 5.6L5.6 18.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_HAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.8 11v4.6a5.2 5.2 0 0 0 5.2 5.2h.8a5.2 5.2 0 0 0 5.2-5.2V11z" fill="currentColor"/><path d="M8.6 11.5V6.2M11.6 11.5V4.4M14.6 11.5V5M17.4 11.5V7.6M6.9 14.6L4.6 11.9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+const ICON_THUMB = '<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(180 12 12)"><path d="M2.5 10h3.8v11H2.5z" fill="currentColor"/><path d="M8 21V10l3.8-7c1.5 0 2.6 1.3 2.3 2.8L13.5 9H19.6a2 2 0 0 1 2 2.3l-1.3 7.6A2 2 0 0 1 18.3 21H8z" fill="currentColor"/></g></svg>';
+const ICON_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-8.3-5-8.3-10.9A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.3 2.6c0 5.9-8.3 10.9-8.3 10.9z" fill="currentColor"/></svg>';
 const ICON_GAMES = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="10" height="14" rx="2" transform="rotate(-10 8.5 12.5)" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="10" y="4" width="10" height="14" rx="2" transform="rotate(8 15 11)" fill="currentColor"/></svg>';
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
@@ -823,16 +833,24 @@ function groupStats() {
 }
 function statsRows() {
   const by = {};
-  const row = n => by[n] || (by[n] = { name: n, games: 0, wins: 0, moons: 0, busts: 0, hands: 0 });
+  const row = n => by[n] || (by[n] = { name: n, games: 0, wins: 0, moons: 0, busts: 0, hands: 0, worst: 0, points: 0 });
   games.forEach(g => {
     (g.players || []).forEach(n => { row(n).games++; row(n).hands += Number(g.hands) || 0; });
     (g.winners || []).forEach(n => row(n).wins++);
     Object.entries(g.moons || {}).forEach(([n, c]) => row(n).moons += Number(c) || 0);
     // a bust = the player whose total went to 100 or more and ended the game
     (g.players || []).forEach((n, i) => { if (Number((g.finals || [])[i]) >= GAME_END) row(n).busts++; });
+    // total points taken, and how often they finished with the highest score of the game (ties all count)
+    const fin = (g.finals || []).map(Number), top = fin.length ? Math.max(...fin) : null;
+    (g.players || []).forEach((n, i) => { if (Number.isFinite(fin[i])) { row(n).points += fin[i]; if (fin[i] === top && fin.length > 1) row(n).worst++; } });
   });
-  return Object.values(by).sort((a, b) => b.wins - a.wins || b.moons - a.moons || a.name.localeCompare(b.name));
+  const list = Object.values(by);
+  list.forEach(r => { r.pct = r.games ? r.wins / r.games : 0; });
+  const { k, d } = ui.statSort || { k: 'wins', d: -1 };
+  return list.sort((a, b) => k === 'name' ? d * a.name.localeCompare(b.name)
+    : d * (a[k] - b[k]) || b.wins - a.wins || b.moons - a.moons || a.name.localeCompare(b.name));
 }
+
 // Passing cycles by table size. [direction, how many people over]
 const PASS_CYCLES = {
   4: [['left', 1], ['right', 1], ['across'], ['hold']],
@@ -1208,14 +1226,35 @@ function drawPopNow() {
     $('#eq-no').onclick = () => { closePop(); render(); };
   } else if (ui.pop === 'stats') {
     const rows = statsRows();
+    const STAT_COLS = [
+      { k: 'wins', cls: 'ic-win', t: 'Wins', i: ICON_WIN, v: r => r.wins },
+      { k: 'pct', cls: 'ic-pct', t: 'Win percentage', i: ICON_PCT, v: r => r.games ? Math.round(100 * r.wins / r.games) + '%' : '–' },
+      { k: 'moons', t: 'Moon shots', i: MOON, v: r => r.moons },
+      { k: 'busts', cls: 'ic-bust', t: 'Heartbreakers: went to 100 and ended the game', i: ICON_BUST, v: r => r.busts },
+      { k: 'worst', cls: 'ic-worst', t: 'Times with the highest score of the game', i: ICON_THUMB, v: r => r.worst },
+      { k: 'games', cls: 'ic-games', t: 'Games played', i: ICON_GAMES, v: r => r.games },
+      { k: 'hands', cls: 'ic-hands', t: 'Hands played', i: ICON_HAND, v: r => r.hands },
+      { k: 'points', cls: 'ic-pts', t: 'Total points taken', i: ICON_HEART, v: r => r.points }
+    ];
+    const sort = ui.statSort || { k: 'wins', d: -1 };
+    const th = (k, cls, t, inner) => `<th scope="col" class="sortable ${cls || ''}${sort.k === k ? ' on' : ''}" data-sort="${k}" tabindex="0" role="columnheader" aria-sort="${sort.k === k ? (sort.d < 0 ? 'descending' : 'ascending') : 'none'}" aria-label="${esc(t)}" title="${esc(t)}">${inner}${sort.k === k ? `<i class="arr" aria-hidden="true">${sort.d < 0 ? '▼' : '▲'}</i>` : ''}</th>`;
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="st-h">
       <div class="pop-head"><div><h2 id="st-h">Stats</h2></div>
         <button class="close" id="x" aria-label="Close">${X}</button></div>
-      ${rows.length ? `<table class="stats"><thead><tr><th scope="col">Player</th><th scope="col" class="ic-win" aria-label="Wins" title="Wins">${ICON_WIN}</th><th scope="col" class="ic-pct" aria-label="Win percentage" title="Win percentage">${ICON_PCT}</th><th scope="col" aria-label="Moon shots" title="Moon shots">${MOON}</th><th scope="col" class="ic-bust" aria-label="Busts: went to 100 and ended the game" title="Busts: went to 100 and ended the game">${ICON_BUST}</th><th scope="col" class="ic-games" aria-label="Games played" title="Games played">${ICON_GAMES}</th><th scope="col" class="ic-hands" aria-label="Hands played" title="Hands played">${ICON_HAND}</th></tr></thead>
-        <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.wins}</td><td>${r.games ? Math.round(100 * r.wins / r.games) + '%' : '–'}</td><td>${r.moons}</td><td>${r.busts}</td><td>${r.games}</td><td>${r.hands}</td></tr>`).join('')}</tbody></table>
+      ${rows.length ? `<table class="stats"><thead><tr>${th('name', '', 'Player', 'Player')}${STAT_COLS.map(c => th(c.k, c.cls, c.t, c.i)).join('')}</tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td>${STAT_COLS.map(c => `<td>${c.v(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>
         ${(a => a ? `<div class="avg-cap">Totals</div><div class="avgs"><div class="avg"><b>${a.games}</b><span>Games</span></div><div class="avg"><b>${a.early}</b><span>Ended early</span></div><div class="avg"><b>${a.moons}</b><span>Moonshots</span></div></div><div class="avg-cap">Averages per game</div><div class="avgs four"><div class="avg"><b>${a.avgPlayers}</b><span>Players</span></div><div class="avg"><b>${a.avgHands}</b><span>Hands</span></div><div class="avg"><b>${a.avgMoons}</b><span>Moonshots</span></div><div class="avg"><b>${a.completion}</b><span>Finished</span></div></div>` : '')(groupStats())}`
         : `<p class="hint">${rosterDb ? 'No finished games yet. Stats show up here after your first game.' : 'Stats aren’t available right now.'}</p>`}
     </div></div>`;
+    layer.querySelectorAll('th[data-sort]').forEach(h => {
+      const go = () => {
+        const k = h.dataset.sort, cur = ui.statSort || { k: 'wins', d: -1 };
+        ui.statSort = cur.k === k ? { k, d: -cur.d } : { k, d: k === 'name' ? 1 : -1 };
+        drawPop();
+      };
+      h.onclick = go;
+      h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+    });
   } else if (ui.pop === 'pass') {
     const pass = passFor(state.hands.length);
     const title = passTitle(pass);
