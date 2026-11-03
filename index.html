@@ -232,7 +232,10 @@ table.stats td{padding:0 4px}
 .avg{background:var(--chip,rgba(128,128,128,.14));border-radius:14px;padding:10px 6px;text-align:center}
 .avg b{display:block;font-size:24px;font-weight:700;line-height:1.1}
 .avg span{display:block;margin-top:2px;font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--pencil)}
-.avg-cap{margin-top:6px;text-align:center;font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--pencil)}
+.avgs.four{grid-template-columns:repeat(4,1fr);gap:6px}
+.avgs.four .avg b{font-size:21px}
+.avgs.four .avg span{font-size:9px;letter-spacing:.03em}
+.avg-cap{margin-top:14px;margin-bottom:-6px;text-align:center;font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--pencil)}
 table.stats th:first-child,table.stats td:first-child{text-align:left}
 table.stats tbody tr+tr td{border-top:1px solid var(--line)}
 .pick-btn{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;font-family:var(--hand);font-size:24px;line-height:1.1;text-align:left}
@@ -800,16 +803,22 @@ async function unrecordGame() {
   state.recorded = false;
   if (rosterDb) { try { await rosterDb.collection('games').doc(state.gameId).delete(); } catch (e) {} }
 }
-// Averages across every saved game, to the nearest tenth
-function groupAverages() {
+// Totals and per-game averages across every saved game (averages to the nearest tenth)
+function groupStats() {
   const n = games.length;
   if (!n) return null;
   const sum = f => games.reduce((a, g) => a + f(g), 0);
   const avg = f => (sum(f) / n).toFixed(1);
+  const moons = g => Object.values(g.moons || {}).reduce((a, c) => a + (Number(c) || 0), 0);
+  const reached = g => (g.finals || []).some(v => Number(v) >= GAME_END);
   return {
-    players: avg(g => (g.players || []).length),
-    hands: avg(g => Number(g.hands) || 0),
-    moons: avg(g => Object.values(g.moons || {}).reduce((a, c) => a + (Number(c) || 0), 0))
+    games: n,
+    early: games.filter(g => g.early).length,
+    moons: sum(moons),
+    avgPlayers: avg(g => (g.players || []).length),
+    avgHands: avg(g => Number(g.hands) || 0),
+    avgMoons: avg(moons),
+    completion: Math.round(100 * games.filter(reached).length / n) + '%'
   };
 }
 function statsRows() {
@@ -1200,11 +1209,11 @@ function drawPopNow() {
   } else if (ui.pop === 'stats') {
     const rows = statsRows();
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="st-h">
-      <div class="pop-head"><div><div class="sub">${games.length} game${games.length === 1 ? '' : 's'} played</div><h2 id="st-h">Stats</h2></div>
+      <div class="pop-head"><div><h2 id="st-h">Stats</h2></div>
         <button class="close" id="x" aria-label="Close">${X}</button></div>
       ${rows.length ? `<table class="stats"><thead><tr><th scope="col">Player</th><th scope="col" class="ic-win" aria-label="Wins" title="Wins">${ICON_WIN}</th><th scope="col" class="ic-pct" aria-label="Win percentage" title="Win percentage">${ICON_PCT}</th><th scope="col" aria-label="Moon shots" title="Moon shots">${MOON}</th><th scope="col" class="ic-bust" aria-label="Busts: went to 100 and ended the game" title="Busts: went to 100 and ended the game">${ICON_BUST}</th><th scope="col" class="ic-games" aria-label="Games played" title="Games played">${ICON_GAMES}</th><th scope="col" class="ic-hands" aria-label="Hands played" title="Hands played">${ICON_HAND}</th></tr></thead>
         <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.wins}</td><td>${r.games ? Math.round(100 * r.wins / r.games) + '%' : '–'}</td><td>${r.moons}</td><td>${r.busts}</td><td>${r.games}</td><td>${r.hands}</td></tr>`).join('')}</tbody></table>
-        ${(a => a ? `<div class="avgs" aria-label="Averages per game"><div class="avg"><b>${a.players}</b><span>Players</span></div><div class="avg"><b>${a.hands}</b><span>Hands</span></div><div class="avg"><b>${a.moons}</b><span>Moons</span></div></div><div class="avg-cap">Average per game</div>` : '')(groupAverages())}`
+        ${(a => a ? `<div class="avg-cap">Totals</div><div class="avgs"><div class="avg"><b>${a.games}</b><span>Games</span></div><div class="avg"><b>${a.early}</b><span>Ended early</span></div><div class="avg"><b>${a.moons}</b><span>Moonshots</span></div></div><div class="avg-cap">Averages per game</div><div class="avgs four"><div class="avg"><b>${a.avgPlayers}</b><span>Players</span></div><div class="avg"><b>${a.avgHands}</b><span>Hands</span></div><div class="avg"><b>${a.avgMoons}</b><span>Moonshots</span></div><div class="avg"><b>${a.completion}</b><span>Finished</span></div></div>` : '')(groupStats())}`
         : `<p class="hint">${rosterDb ? 'No finished games yet. Stats show up here after your first game.' : 'Stats aren’t available right now.'}</p>`}
     </div></div>`;
   } else if (ui.pop === 'pass') {
