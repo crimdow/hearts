@@ -848,9 +848,9 @@ function statsRows() {
     Object.entries(g.moons || {}).forEach(([n, c]) => row(n).moons += Number(c) || 0);
     // a bust = the player whose total went to 100 or more and ended the game
     (g.players || []).forEach((n, i) => { if (Number((g.finals || [])[i]) >= GAME_END) row(n).busts++; });
-    // total hearts taken, and how often they had the highest score of a shortened (ended-early) game (ties all count)
+    // total hearts taken, and how often they had the highest score of a game, heartbreakers included (ties all count)
     const fin = (g.finals || []).map(Number), top = fin.length ? Math.max(...fin) : null;
-    (g.players || []).forEach((n, i) => { if (Number.isFinite(fin[i])) { row(n).points += fin[i]; if (g.early && fin[i] === top && fin.length > 1) row(n).worst++; } });
+    (g.players || []).forEach((n, i) => { if (Number.isFinite(fin[i])) { row(n).points += fin[i]; if (fin[i] === top && fin.length > 1) row(n).worst++; } });
   });
   const list = Object.values(by);
   list.forEach(r => { r.pct = r.games ? r.wins / r.games : 0; });
@@ -1239,7 +1239,7 @@ function drawPopNow() {
       { k: 'pct', l: 'Win %', cls: 'ic-pct', t: 'Win percentage', i: ICON_PCT, v: r => r.games ? Math.round(100 * r.wins / r.games) + '%' : '–' },
       { k: 'moons', l: 'Moonshots', t: 'Moon shots', i: MOON, v: r => r.moons },
       { k: 'busts', l: 'Broke 100 in a complete game', cls: 'ic-bust', t: 'Broke 100 in a complete game', i: ICON_BUST, v: r => r.busts },
-      { k: 'worst', l: 'Highest score in a shortened game', cls: 'ic-worst', t: 'Highest score in a shortened game', i: ICON_THUMB, v: r => r.worst },
+      { k: 'worst', l: 'Highest score in a game', cls: 'ic-worst', t: 'Highest score in a game', i: ICON_THUMB, v: r => r.worst },
       { k: 'games', l: 'Games played', cls: 'ic-games', t: 'Games played', i: ICON_GAMES, v: r => r.games },
       { k: 'hands', l: 'Hands played', cls: 'ic-hands', t: 'Hands played', i: ICON_HAND, v: r => r.hands },
       { k: 'points', l: 'Total hearts taken', cls: 'ic-pts', t: 'Total hearts taken', i: ICON_HEART, v: r => r.points }
