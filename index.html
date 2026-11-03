@@ -227,6 +227,14 @@ table.stats th.ic-win{color:#c9a227}
 table.stats th.ic-bust{color:var(--accent)}
 table.stats th.ic-games{color:var(--pencil)}
 table.stats th.ic-pct,table.stats th.ic-hands,table.stats th.ic-worst{color:var(--pencil)}
+.hd-btns{display:flex;gap:8px}
+.hd-btns .close{font-family:var(--ui);font-size:18px;font-weight:700;color:var(--pencil)}
+.hd-btns .close.on{background:var(--accent);color:#fff}
+.legend{display:grid;grid-template-columns:1fr;gap:9px;margin:2px 0 14px;padding:12px 14px;border-radius:14px;background:var(--chip)}
+.lg{display:flex;align-items:center;gap:7px;font-family:var(--ui);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pencil)}
+.lg svg{flex:none;width:17px;height:17px}
+.lg .moon{width:15px;height:15px;color:#c9a227}
+.lg.ic-win{color:var(--pencil)}.lg.ic-win svg{color:#c9a227}.lg.ic-bust svg,.lg.ic-pts svg{color:var(--accent)}
 table.stats th.ic-pts{color:var(--accent)}
 table.stats th.sortable{cursor:pointer;position:relative;user-select:none;-webkit-tap-highlight-color:transparent}
 table.stats th.sortable.on{box-shadow:inset 0 -2px 0 currentColor}
@@ -840,9 +848,9 @@ function statsRows() {
     Object.entries(g.moons || {}).forEach(([n, c]) => row(n).moons += Number(c) || 0);
     // a bust = the player whose total went to 100 or more and ended the game
     (g.players || []).forEach((n, i) => { if (Number((g.finals || [])[i]) >= GAME_END) row(n).busts++; });
-    // total points taken, and how often they finished with the highest score of the game (ties all count)
+    // total hearts taken, and how often they had the highest score of a shortened (ended-early) game (ties all count)
     const fin = (g.finals || []).map(Number), top = fin.length ? Math.max(...fin) : null;
-    (g.players || []).forEach((n, i) => { if (Number.isFinite(fin[i])) { row(n).points += fin[i]; if (fin[i] === top && fin.length > 1) row(n).worst++; } });
+    (g.players || []).forEach((n, i) => { if (Number.isFinite(fin[i])) { row(n).points += fin[i]; if (g.early && fin[i] === top && fin.length > 1) row(n).worst++; } });
   });
   const list = Object.values(by);
   list.forEach(r => { r.pct = r.games ? r.wins / r.games : 0; });
@@ -1227,25 +1235,27 @@ function drawPopNow() {
   } else if (ui.pop === 'stats') {
     const rows = statsRows();
     const STAT_COLS = [
-      { k: 'wins', cls: 'ic-win', t: 'Wins', i: ICON_WIN, v: r => r.wins },
-      { k: 'pct', cls: 'ic-pct', t: 'Win percentage', i: ICON_PCT, v: r => r.games ? Math.round(100 * r.wins / r.games) + '%' : '–' },
-      { k: 'moons', t: 'Moon shots', i: MOON, v: r => r.moons },
-      { k: 'busts', cls: 'ic-bust', t: 'Heartbreakers: went to 100 and ended the game', i: ICON_BUST, v: r => r.busts },
-      { k: 'worst', cls: 'ic-worst', t: 'Times with the highest score of the game', i: ICON_THUMB, v: r => r.worst },
-      { k: 'games', cls: 'ic-games', t: 'Games played', i: ICON_GAMES, v: r => r.games },
-      { k: 'hands', cls: 'ic-hands', t: 'Hands played', i: ICON_HAND, v: r => r.hands },
-      { k: 'points', cls: 'ic-pts', t: 'Total points taken', i: ICON_HEART, v: r => r.points }
+      { k: 'wins', l: 'Wins', cls: 'ic-win', t: 'Wins', i: ICON_WIN, v: r => r.wins },
+      { k: 'pct', l: 'Win %', cls: 'ic-pct', t: 'Win percentage', i: ICON_PCT, v: r => r.games ? Math.round(100 * r.wins / r.games) + '%' : '–' },
+      { k: 'moons', l: 'Moonshots', t: 'Moon shots', i: MOON, v: r => r.moons },
+      { k: 'busts', l: 'Broke 100 in a complete game', cls: 'ic-bust', t: 'Broke 100 in a complete game', i: ICON_BUST, v: r => r.busts },
+      { k: 'worst', l: 'Highest score in a shortened game', cls: 'ic-worst', t: 'Highest score in a shortened game', i: ICON_THUMB, v: r => r.worst },
+      { k: 'games', l: 'Games played', cls: 'ic-games', t: 'Games played', i: ICON_GAMES, v: r => r.games },
+      { k: 'hands', l: 'Hands played', cls: 'ic-hands', t: 'Hands played', i: ICON_HAND, v: r => r.hands },
+      { k: 'points', l: 'Total hearts taken', cls: 'ic-pts', t: 'Total hearts taken', i: ICON_HEART, v: r => r.points }
     ];
     const sort = ui.statSort || { k: 'wins', d: -1 };
     const th = (k, cls, t, inner) => `<th scope="col" class="sortable ${cls || ''}${sort.k === k ? ' on' : ''}" data-sort="${k}" tabindex="0" role="columnheader" aria-sort="${sort.k === k ? (sort.d < 0 ? 'descending' : 'ascending') : 'none'}" aria-label="${esc(t)}" title="${esc(t)}">${inner}${sort.k === k ? `<i class="arr" aria-hidden="true">${sort.d < 0 ? '▼' : '▲'}</i>` : ''}</th>`;
     layer.innerHTML = `<div class="scrim" id="scrim"><div class="pop" role="dialog" aria-modal="true" aria-labelledby="st-h">
       <div class="pop-head"><div><h2 id="st-h">Stats</h2></div>
-        <button class="close" id="x" aria-label="Close">${X}</button></div>
-      ${rows.length ? `<table class="stats"><thead><tr>${th('name', '', 'Player', 'Player')}${STAT_COLS.map(c => th(c.k, c.cls, c.t, c.i)).join('')}</tr></thead>
+        <div class="hd-btns"><button class="close${ui.statLegend ? ' on' : ''}" id="lg-btn" aria-label="Legend" aria-expanded="${!!ui.statLegend}" title="What the icons mean">?</button><button class="close" id="x" aria-label="Close">${X}</button></div></div>
+      ${rows.length ? `${ui.statLegend ? `<div class="legend" aria-label="Legend">${STAT_COLS.map(c => `<span class="lg ${c.cls || ''}">${c.i}${c.l}</span>`).join('')}</div>` : ''}
+        <table class="stats"><thead><tr>${th('name', '', 'Player', 'Player')}${STAT_COLS.map(c => th(c.k, c.cls, c.t, c.i)).join('')}</tr></thead>
         <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td>${STAT_COLS.map(c => `<td>${c.v(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>
         ${(a => a ? `<div class="avg-cap">Totals</div><div class="avgs"><div class="avg"><b>${a.games}</b><span>Games</span></div><div class="avg"><b>${a.early}</b><span>Ended early</span></div><div class="avg"><b>${a.moons}</b><span>Moonshots</span></div></div><div class="avg-cap">Averages per game</div><div class="avgs four"><div class="avg"><b>${a.avgPlayers}</b><span>Players</span></div><div class="avg"><b>${a.avgHands}</b><span>Hands</span></div><div class="avg"><b>${a.avgMoons}</b><span>Moonshots</span></div><div class="avg"><b>${a.completion}</b><span>Finished</span></div></div>` : '')(groupStats())}`
         : `<p class="hint">${rosterDb ? 'No finished games yet. Stats show up here after your first game.' : 'Stats aren’t available right now.'}</p>`}
     </div></div>`;
+    $('#lg-btn').onclick = () => { ui.statLegend = !ui.statLegend; drawPop(); };
     layer.querySelectorAll('th[data-sort]').forEach(h => {
       const go = () => {
         const k = h.dataset.sort, cur = ui.statSort || { k: 'wins', d: -1 };
